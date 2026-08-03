@@ -148,30 +148,17 @@ android {
     }
 
     signingConfigs {
-        create("persistentDebug") {
-            storeFile = persistentDebugKeystoreFile
-            storePassword = "android"
+        getByName("debug") {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
-        }
-        create("workflowDebug") {
-            storeFile = workflowDebugKeystoreFile ?: persistentDebugKeystoreFile
-            storePassword = debugKeystorePassword
-            keyAlias = debugKeyAlias
-            keyPassword = debugKeyPassword
+            storePassword = "android"
         }
         create("release") {
-            // Memakai persistent-debug.keystore agar tidak mencari file release.keystore yang hilang
-            storeFile = persistentDebugKeystoreFile
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-        getByName("debug") {
-            storeFile = workflowDebugKeystoreFile ?: persistentDebugKeystoreFile
-            storePassword = debugKeystorePassword
-            keyAlias = debugKeyAlias
-            keyPassword = debugKeyPassword
+            // Jika environment secret tidak ada, fallback ke signing debug agar tidak crash
+            storeFile = file("keystore/release.keystore")
+            storePassword = System.getenv("STORE_PASSWORD") ?: "android"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
         }
     }
 
@@ -181,7 +168,12 @@ android {
             isShrinkResources = true
             isCrunchPngs = false
             isDebuggable = false
-            signingConfig = signingConfigs.getByName("release")
+            // Paksa gunakan signing debug jika file release.keystore asli tidak ada
+            signingConfig = if (file("keystore/release.keystore").exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -193,8 +185,9 @@ android {
             }
             isDebuggable = true
             if (appNameOverride == null) {
-                resValue("string", "app_name", "Metrolist Debug")
+                resValue("string", "app_name", "Pagaska Debug")
             }
+            // Selalu gunakan debug signing default
             signingConfig = signingConfigs.getByName("debug")
         }
     }
