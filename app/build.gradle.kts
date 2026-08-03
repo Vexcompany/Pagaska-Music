@@ -168,10 +168,10 @@ android {
             keyPassword = "android"
         }
         getByName("debug") {
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-            storePassword = "android"
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storeFile = workflowDebugKeystoreFile ?: persistentDebugKeystoreFile
+            storePassword = debugKeystorePassword
+            keyAlias = debugKeyAlias
+            keyPassword = debugKeyPassword
         }
     }
 
