@@ -41,6 +41,12 @@ jobs:
           java-version: "21"
           distribution: "temurin"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+
       - name: Set Up Gradle
         uses: gradle/actions/setup-gradle@v5
         with:
@@ -110,6 +116,12 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
       - name: Set Up Gradle
         uses: gradle/actions/setup-gradle@v5

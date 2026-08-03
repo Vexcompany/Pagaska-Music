@@ -161,10 +161,11 @@ android {
             keyPassword = debugKeyPassword
         }
         create("release") {
-            storeFile = file("keystore/release.keystore")
-            storePassword = System.getenv("STORE_PASSWORD")
-            keyAlias = System.getenv("KEY_ALIAS")
-            keyPassword = System.getenv("KEY_PASSWORD")
+            // Memakai persistent-debug.keystore agar tidak mencari file release.keystore yang hilang
+            storeFile = persistentDebugKeystoreFile
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
         getByName("debug") {
             keyAlias = "androiddebugkey"
@@ -180,6 +181,7 @@ android {
             isShrinkResources = true
             isCrunchPngs = false
             isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -193,14 +195,7 @@ android {
             if (appNameOverride == null) {
                 resValue("string", "app_name", "Metrolist Debug")
             }
-            signingConfig =
-                if (workflowDebugKeystoreFile != null) {
-                    signingConfigs.getByName("workflowDebug")
-                } else if (persistentDebugKeystoreFile.exists()) {
-                    signingConfigs.getByName("persistentDebug")
-                } else {
-                    signingConfigs.getByName("debug")
-                }
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
