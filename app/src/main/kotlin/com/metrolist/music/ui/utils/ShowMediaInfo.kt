@@ -64,6 +64,7 @@ fun getLoudnessLevelLabel(loudnessLevel: LoudnessLevel): String {
         LoudnessLevel.LOUD -> stringResource(R.string.loudness_level_loud)
         LoudnessLevel.BALANCED -> stringResource(R.string.loudness_level_balanced)
         LoudnessLevel.QUIET -> stringResource(R.string.loudness_level_quiet)
+        LoudnessLevel.BOOST -> stringResource(R.string.loudness_level_boost)
     }
 }
 

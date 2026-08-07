@@ -132,10 +132,11 @@ val LoudnessLevelKey = stringPreferencesKey("loudnessLevel")
 enum class LoudnessLevel(
     val targetLufs: Float
 ) {
-    AGGRESSIVE(-7f),
-    LOUD(-11f),
-    BALANCED(-14f),
-    QUIET(-19f),
+    QUIET(0f),
+    BALANCED(1f),
+    LOUD(2f),
+    AGGRESSIVE(3f),
+    BOOST(4f),
 }
 
 val AutoLoadMoreKey = booleanPreferencesKey("autoLoadMore")
