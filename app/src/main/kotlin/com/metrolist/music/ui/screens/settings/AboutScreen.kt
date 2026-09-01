@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.metrolist.music.BuildConfig
 import com.metrolist.music.LocalPlayerAwareWindowInsets
 import com.metrolist.music.R
@@ -54,6 +55,8 @@ private const val VEX_INSTAGRAM = "https://www.instagram.com/whoisvex"
 private const val VEX_TIKTOK = "https://www.tiktok.com/@whoisvex._"
 private const val TRAKTEER = "https://trakteer.id/verolyz"
 private const val SAWERIA = "https://saweria.co/Vex001"
+private const val VEX_AVATAR_URL = "https://vex.web.id/e2ea9c24-9a6a-4273-ab89-11d4c0c60122.png"
+private const val PAGASKA_AVATAR_URL = "https://vex.web.id/logo.png"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,15 +77,10 @@ fun AboutScreen(
         Spacer(Modifier.windowInsetsPadding(windowInsets.only(WindowInsetsSides.Top)))
         Spacer(Modifier.height(16.dp))
 
-        ElevatedCard(
-            shape = RoundedCornerShape(32.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        ElevatedCard(shape = RoundedCornerShape(32.dp), modifier = Modifier.fillMaxWidth()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
+                modifier = Modifier.fillMaxWidth().padding(24.dp)
             ) {
                 Image(
                     painter = painterResource(R.drawable.about_icon),
@@ -92,36 +90,14 @@ fun AboutScreen(
                 )
                 Spacer(Modifier.width(20.dp))
                 Column {
-                    Text(
-                        text = "Pagaska Music",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = (-0.5).sp
-                    )
+                    Text("Pagaska Music", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                        ) {
-                            Text(
-                                text = BuildConfig.VERSION_NAME,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)) {
+                            Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                         }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                        ) {
-                            Text(
-                                text = BuildConfig.ARCHITECTURE.uppercase(),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)) {
+                            Text(BuildConfig.ARCHITECTURE.uppercase(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                         }
                     }
                 }
@@ -130,60 +106,37 @@ fun AboutScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        ElevatedCard(
-            shape = RoundedCornerShape(32.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        ElevatedCard(shape = RoundedCornerShape(32.dp), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = "Vex",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Black
-                )
-                Text(
-                    text = stringResource(R.string.credits_lead_developer),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = VEX_AVATAR_URL,
+                        contentDescription = "Vex avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(72.dp).then(Modifier),
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text("Vex", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+                        Text(stringResource(R.string.credits_lead_developer), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    }
+                }
 
                 Spacer(Modifier.height(20.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    FilledTonalButton(
-                        onClick = { uriHandler.openUri(VEX_INSTAGRAM) },
-                        modifier = Modifier.weight(1f).height(48.dp)
-                    ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FilledTonalButton(onClick = { uriHandler.openUri(VEX_INSTAGRAM) }, modifier = Modifier.weight(1f).height(48.dp)) {
                         Icon(painterResource(R.drawable.instagram), contentDescription = "Instagram")
                     }
-                    FilledTonalButton(
-                        onClick = { uriHandler.openUri(VEX_TIKTOK) },
-                        modifier = Modifier.weight(1f).height(48.dp)
-                    ) {
+                    FilledTonalButton(onClick = { uriHandler.openUri(VEX_TIKTOK) }, modifier = Modifier.weight(1f).height(48.dp)) {
                         Icon(painterResource(R.drawable.music_note), contentDescription = "TikTok")
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
-
-                Button(
-                    onClick = { uriHandler.openUri(TRAKTEER) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CircleShape
-                ) {
-                    Text("Trakteer", fontWeight = FontWeight.Bold)
-                }
+                Button(onClick = { uriHandler.openUri(TRAKTEER) }, modifier = Modifier.fillMaxWidth(), shape = CircleShape) { Text("Trakteer", fontWeight = FontWeight.Bold) }
                 Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = { uriHandler.openUri(SAWERIA) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CircleShape
-                ) {
-                    Text("Saweria", fontWeight = FontWeight.Bold)
-                }
+                Button(onClick = { uriHandler.openUri(SAWERIA) }, modifier = Modifier.fillMaxWidth(), shape = CircleShape) { Text("Saweria", fontWeight = FontWeight.Bold) }
             }
         }
 
@@ -205,24 +158,9 @@ fun AboutScreen(
         Material3SettingsGroup(
             title = stringResource(R.string.community_and_info),
             items = listOf(
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.instagram),
-                    title = { Text("Instagram", fontWeight = FontWeight.SemiBold) },
-                    description = { Text("Pagaska") },
-                    onClick = { uriHandler.openUri(PAGASKA_INSTAGRAM) }
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.music_note),
-                    title = { Text("TikTok", fontWeight = FontWeight.SemiBold) },
-                    description = { Text("Pagaska") },
-                    onClick = { uriHandler.openUri(PAGASKA_TIKTOK) }
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.play),
-                    title = { Text("YouTube", fontWeight = FontWeight.SemiBold) },
-                    description = { Text("Pagaska") },
-                    onClick = { uriHandler.openUri(PAGASKA_YOUTUBE) }
-                )
+                Material3SettingsItem(icon = painterResource(R.drawable.instagram), title = { Text("Instagram", fontWeight = FontWeight.SemiBold) }, description = { Text("Pagaska") }, onClick = { uriHandler.openUri(PAGASKA_INSTAGRAM) }),
+                Material3SettingsItem(icon = painterResource(R.drawable.music_note), title = { Text("TikTok", fontWeight = FontWeight.SemiBold) }, description = { Text("Pagaska") }, onClick = { uriHandler.openUri(PAGASKA_TIKTOK) }),
+                Material3SettingsItem(icon = painterResource(R.drawable.play), title = { Text("YouTube", fontWeight = FontWeight.SemiBold) }, description = { Text("Pagaska") }, onClick = { uriHandler.openUri(PAGASKA_YOUTUBE) })
             )
         )
 
@@ -231,29 +169,13 @@ fun AboutScreen(
         Material3SettingsGroup(
             title = "Contribute",
             items = listOf(
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.instagram),
-                    title = { Text("Instagram", fontWeight = FontWeight.SemiBold) },
-                    description = { Text("Pagaska") },
-                    onClick = { uriHandler.openUri(PAGASKA_INSTAGRAM) }
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.music_note),
-                    title = { Text("TikTok", fontWeight = FontWeight.SemiBold) },
-                    description = { Text("Pagaska") },
-                    onClick = { uriHandler.openUri(PAGASKA_TIKTOK) }
-                )
+                Material3SettingsItem(icon = painterResource(R.drawable.instagram), title = { Text("Instagram", fontWeight = FontWeight.SemiBold) }, description = { Text("Pagaska") }, onClick = { uriHandler.openUri(PAGASKA_INSTAGRAM) }),
+                Material3SettingsItem(icon = painterResource(R.drawable.music_note), title = { Text("TikTok", fontWeight = FontWeight.SemiBold) }, description = { Text("Pagaska") }, onClick = { uriHandler.openUri(PAGASKA_TIKTOK) })
             )
         )
 
         Spacer(Modifier.height(48.dp))
-
-        Text(
-            text = stringResource(R.string.stands_with_palestine),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text(stringResource(R.string.stands_with_palestine), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
     }
 }
