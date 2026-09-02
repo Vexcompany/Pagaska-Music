@@ -40,6 +40,10 @@ import com.metrolist.music.ui.utils.backToMain
 import com.metrolist.music.utils.Updater
 import androidx.compose.runtime.remember
 
+private const val PAGASKA_INSTAGRAM = "https://www.instagram.com/pagaska_"
+private const val PAGASKA_TIKTOK = "https://www.tiktok.com/@gala.taksaka"
+private const val PAGASKA_YOUTUBE = "https://youtube.com/@pagaskasmkn5madiun?si=gYoUXbunjl-dswDr"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -223,12 +227,28 @@ fun SettingsScreen(
                         )
                     )
                 }
-                val showChangelog = com.metrolist.music.LocalChangelogState.current
                 add(
                     Material3SettingsItem(
-                        icon = painterResource(R.drawable.link),
+                        icon = painterResource(R.drawable.instagram),
                         title = { Text(stringResource(R.string.pagaska_social)) },
-                        onClick = { showChangelog.value = true }
+                        description = { Text("Instagram") },
+                        onClick = { uriHandler.openUri(PAGASKA_INSTAGRAM) }
+                    )
+                )
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.music_note),
+                        title = { Text("TikTok") },
+                        description = { Text("Pagaska") },
+                        onClick = { uriHandler.openUri(PAGASKA_TIKTOK) }
+                    )
+                )
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.play),
+                        title = { Text("YouTube") },
+                        description = { Text("Pagaska") },
+                        onClick = { uriHandler.openUri(PAGASKA_YOUTUBE) }
                     )
                 )
                 add(
