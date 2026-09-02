@@ -150,7 +150,7 @@ fun AboutScreen(
             title = "Contributors",
             items = listOf(
                 Material3SettingsItem(
-                    icon = painterResource(R.drawable.group),
+                    icon = painterResource(R.drawable.about_icon),
                     title = { Text("Pagaska", fontWeight = FontWeight.SemiBold) },
                     description = { Text("Contributor") }
                 )
