@@ -44,7 +44,7 @@ jobs:
           if git show HEAD^:app/build.gradle.kts > /dev/null 2>&1; then
             OLD_VERSION=$(git show HEAD^:app/build.gradle.kts | grep -oP 'versionName\s*=\s*"\K[^"]+' || echo "")
             echo "Previous version: $OLD_VERSION"
-            
+
             if [ "$OLD_VERSION" != "$NEW_VERSION" ]; then
               echo "Version changed from $OLD_VERSION to $NEW_VERSION"
               echo "version_changed=true" >> $GITHUB_OUTPUT
@@ -106,8 +106,8 @@ jobs:
       - name: Build and Lint Release APK
         run: ./gradlew --console=plain clean assemble${{ matrix.variantName }}Release :app:lint${{ matrix.variantName }}Release --warning-mode summary
         env:
-          METROLIST_APPLICATION_ID: com.metrolist.music
-          METROLIST_APP_NAME: Metrolist
+          PAGASKA_APPLICATION_ID: com.metrolist.music
+          PAGASKA_APP_NAME: Pagaska Music
           PULL_REQUEST: "false"
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
@@ -137,11 +137,11 @@ jobs:
           fi
 
           if [ "${{ matrix.variant }}" = "gms" ]; then
-            TARGET_NAME="Metrolist-with-Google-Cast.apk"
+            TARGET_NAME="Pagaska-Music-with-Google-Cast.apk"
           elif [ "${{ matrix.variant }}" = "izzy" ]; then
-            TARGET_NAME="Metrolist-izzy.apk"
+            TARGET_NAME="Pagaska-Music-izzy.apk"
           else
-            TARGET_NAME="Metrolist.apk"
+            TARGET_NAME="Pagaska-Music.apk"
           fi
 
           mv "$SIGNED_APK" "$OUTPUT_DIR/out/$TARGET_NAME"
@@ -152,7 +152,7 @@ jobs:
       - name: Upload Signed APKs
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.variant == 'gms' && 'Metrolist-with-Google-Cast' || matrix.variant == 'izzy' && 'Metrolist-izzy' || 'Metrolist' }}
+          name: ${{ matrix.variant == 'gms' && 'Pagaska-Music-with-Google-Cast' || matrix.variant == 'izzy' && 'Pagaska-Music-izzy' || 'Pagaska-Music' }}
           path: app/build/outputs/apk/${{ matrix.variant }}/release/out/*.apk
 
   create-release:
@@ -204,7 +204,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          echo "Creating release v${{ needs.check-version.outputs.new_version }}"
+          echo "Creating Pagaska Music release v${{ needs.check-version.outputs.new_version }}"
 
           {
             echo "Released by @${{ github.triggering_actor }}"
@@ -213,7 +213,7 @@ jobs:
           } > attributed_release_notes.md
 
           gh release create "v${{ needs.check-version.outputs.new_version }}" \
-            --title "${{ needs.check-version.outputs.new_version }}" \
+            --title "Pagaska Music ${{ needs.check-version.outputs.new_version }}" \
             --notes-file attributed_release_notes.md \
             --latest \
             release_files/*.apk
@@ -222,7 +222,7 @@ jobs:
 
       - name: Update release summary
         run: |
-          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Pagaska Music Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: v${{ needs.check-version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Version Code**: ${{ needs.check-version.outputs.version_code }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Released by**: @${{ github.triggering_actor }}" >> $GITHUB_STEP_SUMMARY
