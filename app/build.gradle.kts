@@ -20,12 +20,12 @@ if (localPropertiesFile.exists()) {
 }
 
 val baseApplicationId = "com.metrolist.music"
-val applicationIdOverride = System.getenv("METROLIST_APPLICATION_ID")?.takeIf { it.isNotBlank() }
-val appNameOverride = System.getenv("METROLIST_APP_NAME")?.takeIf { it.isNotBlank() }
-val debugKeystorePathOverride = System.getenv("METROLIST_DEBUG_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
-val debugKeystorePassword = System.getenv("METROLIST_DEBUG_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
-val debugKeyAlias = System.getenv("METROLIST_DEBUG_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
-val debugKeyPassword = System.getenv("METROLIST_DEBUG_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
+val applicationIdOverride = (System.getenv("PAGASKA_APPLICATION_ID") ?: System.getenv("METROLIST_APPLICATION_ID"))?.takeIf { it.isNotBlank() }
+val appNameOverride = (System.getenv("PAGASKA_APP_NAME") ?: System.getenv("METROLIST_APP_NAME"))?.takeIf { it.isNotBlank() }
+val debugKeystorePathOverride = (System.getenv("PAGASKA_DEBUG_KEYSTORE_PATH") ?: System.getenv("METROLIST_DEBUG_KEYSTORE_PATH"))?.takeIf { it.isNotBlank() }
+val debugKeystorePassword = (System.getenv("PAGASKA_DEBUG_KEYSTORE_PASSWORD") ?: System.getenv("METROLIST_DEBUG_KEYSTORE_PASSWORD"))?.takeIf { it.isNotBlank() } ?: "android"
+val debugKeyAlias = (System.getenv("PAGASKA_DEBUG_KEY_ALIAS") ?: System.getenv("METROLIST_DEBUG_KEY_ALIAS"))?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
+val debugKeyPassword = (System.getenv("PAGASKA_DEBUG_KEY_PASSWORD") ?: System.getenv("METROLIST_DEBUG_KEY_PASSWORD"))?.takeIf { it.isNotBlank() } ?: "android"
 val persistentDebugKeystoreFile = file("persistent-debug.keystore")
 val workflowDebugKeystoreFile = debugKeystorePathOverride?.let(::file)
 
@@ -103,7 +103,7 @@ android {
         targetSdk = 36
         versionCode = 150
         versionName = "13.6.1"
-        resValue("string", "app_name", appNameOverride ?: "Metrolist")
+        resValue("string", "app_name", appNameOverride ?: "Pagaska Music")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -191,7 +191,7 @@ android {
             }
             isDebuggable = true
             if (appNameOverride == null) {
-                resValue("string", "app_name", "Metrolist Debug")
+                resValue("string", "app_name", "Pagaska Music Debug")
             }
             signingConfig =
                 if (workflowDebugKeystoreFile != null) {
