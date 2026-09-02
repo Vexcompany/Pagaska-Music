@@ -117,8 +117,10 @@ fun AboutScreen(
                     )
                     Spacer(Modifier.width(16.dp))
                     Column {
-                        Text("Vex", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+                        Text("Giovanni Adhi Pratama", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
                         Text(stringResource(R.string.credits_lead_developer), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Alumni Koordinator Infokom Generasi 2", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
