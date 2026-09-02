@@ -1,5 +1,5 @@
 /**
- * Metrolist Project (C) 2026
+ * Pagaska Music updater.
  * Licensed under GPL-3.0 | See git history for contributors
  */
 
@@ -34,12 +34,12 @@ object Updater {
     private val client = HttpClient()
     var lastCheckTime = -1L
         private set
-    
+
     private var cachedReleaseInfo: ReleaseInfo? = null
     private var cachedAllReleases: List<ReleaseInfo> = emptyList()
-    
+
     private const val CHECK_INTERVAL_MILLIS = 2 * 60 * 60 * 1000L // 2 hours
-    private const val GITHUB_API_BASE = "https://api.github.com/repos/MetrolistGroup/Metrolist"
+    private const val GITHUB_API_BASE = "https://api.github.com/repos/Vexcompany/Pagaska-Music"
     private const val KMP_RELEASES_URL = "https://api.github.com/repos/MetrolistGroup/Metrolist-KMP/releases?per_page=30"
     const val KMP_APK_NAME = "Metrolist.apk"
 
@@ -51,7 +51,7 @@ object Updater {
         val v1Parts = v1.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
         val v2Parts = v2.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
         val maxLength = maxOf(v1Parts.size, v2Parts.size)
-        
+
         for (i in 0 until maxLength) {
             val part1 = v1Parts.getOrNull(i) ?: 0
             val part2 = v2Parts.getOrNull(i) ?: 0
@@ -81,25 +81,28 @@ object Updater {
     }
 
     /**
-     * Parse release assets from GitHub API response
+     * Parse release assets from GitHub API response.
+     * Pagaska assets are preferred; legacy Metrolist asset names remain readable
+     * so older releases can still be consumed during the migration period.
      */
     private fun parseAssets(assetsArray: JSONArray): List<ReleaseAsset> {
         val assets = mutableListOf<ReleaseAsset>()
-        
+
         for (i in 0 until assetsArray.length()) {
             val asset = assetsArray.getJSONObject(i)
             val name = asset.getString("name")
-            
+
             // Skip non-APK files
             if (!name.endsWith(".apk")) continue
-            
+
             val downloadUrl = asset.getString("browser_download_url")
             val size = asset.getLong("size")
-            
+
             // Parse architecture and variant from filename
             val (arch, variant) = when {
-                name == "Metrolist.apk" -> "universal" to "foss"
-                name == "Metrolist-with-Google-Cast.apk" -> "universal" to "gms"
+                name == "Pagaska-Music.apk" || name == "Metrolist.apk" -> "universal" to "foss"
+                name == "Pagaska-Music-with-Google-Cast.apk" || name == "Metrolist-with-Google-Cast.apk" -> "universal" to "gms"
+                name == "Pagaska-Music-izzy.apk" || name == "Metrolist-izzy.apk" -> "universal" to "foss"
                 name.startsWith("app-") && name.endsWith("-release.apk") -> {
                     val arch = name.removePrefix("app-").removeSuffix("-release.apk")
                     arch to "foss"
@@ -110,17 +113,17 @@ object Updater {
                 }
                 else -> null to null
             }
-            
+
             if (arch != null && variant != null) {
                 assets.add(ReleaseAsset(name, downloadUrl, size, arch, variant))
             }
         }
-        
+
         return assets
     }
 
     /**
-     * Fetch latest release from GitHub API
+     * Fetch latest Pagaska Music release from GitHub API
      */
     suspend fun getLatestRelease(forceRefresh: Boolean = false): Result<ReleaseInfo> =
         withContext(Dispatchers.IO) {
@@ -129,11 +132,11 @@ object Updater {
                 if (cachedReleaseInfo != null && !forceRefresh) {
                     return@runCatching cachedReleaseInfo!!
                 }
-                
+
                 val response = client.get("$GITHUB_API_BASE/releases/latest")
                     .bodyAsText()
                 val json = JSONObject(response)
-                
+
                 val releaseInfo = ReleaseInfo(
                     tagName = json.getString("tag_name"),
                     versionName = json.getString("name"),
@@ -141,7 +144,7 @@ object Updater {
                     releaseDate = json.getString("published_at"),
                     assets = parseAssets(json.getJSONArray("assets"))
                 )
-                
+
                 cachedReleaseInfo = releaseInfo
                 lastCheckTime = System.currentTimeMillis()
                 releaseInfo
@@ -149,7 +152,7 @@ object Updater {
         }
 
     /**
-     * Fetch all releases from GitHub API (paginated)
+     * Fetch all Pagaska Music releases from GitHub API (paginated)
      */
     suspend fun getAllReleases(forceRefresh: Boolean = false): Result<List<ReleaseInfo>> =
         withContext(Dispatchers.IO) {
@@ -157,21 +160,21 @@ object Updater {
                 if (cachedAllReleases.isNotEmpty() && !forceRefresh) {
                     return@runCatching cachedAllReleases
                 }
-                
+
                 val releases = mutableListOf<ReleaseInfo>()
                 var page = 1
                 var hasMore = true
-                
+
                 while (hasMore && page <= 10) { // Limit to 10 pages
                     val response = client.get("$GITHUB_API_BASE/releases?page=$page&per_page=30")
                         .bodyAsText()
                     val json = JSONArray(response)
-                    
+
                     if (json.length() == 0) {
                         hasMore = false
                         break
                     }
-                    
+
                     for (i in 0 until json.length()) {
                         val releaseObj = json.getJSONObject(i)
                         releases.add(ReleaseInfo(
@@ -182,10 +185,10 @@ object Updater {
                             assets = parseAssets(releaseObj.getJSONArray("assets"))
                         ))
                     }
-                    
+
                     page++
                 }
-                
+
                 cachedAllReleases = releases
                 releases
             }
@@ -193,6 +196,7 @@ object Updater {
 
     /**
      * Returns the newest KMP release that provides the migration APK.
+     * This remains pointed at the upstream migration project by design.
      */
     suspend fun getLatestKmpRelease(): Result<ReleaseInfo?> =
         withContext(Dispatchers.IO) {
@@ -223,7 +227,7 @@ object Updater {
      */
     fun getDownloadUrlForCurrentVariant(releaseInfo: ReleaseInfo): String? {
         val (currentArch, currentVariant) = getCurrentAppVariant()
-        
+
         return releaseInfo.assets
             .find { it.architecture == currentArch && it.variant == currentVariant }
             ?.downloadUrl
@@ -243,9 +247,9 @@ object Updater {
         withContext(Dispatchers.IO) {
             runCatching {
                 // Check if we should fetch (2 hour interval)
-                val shouldFetch = forceRefresh || 
+                val shouldFetch = forceRefresh ||
                     (System.currentTimeMillis() - lastCheckTime) > CHECK_INTERVAL_MILLIS
-                
+
                 if (!shouldFetch && cachedReleaseInfo != null) {
                     val hasUpdate = isUpdateAvailable(
                         BuildConfig.VERSION_NAME,
@@ -253,7 +257,7 @@ object Updater {
                     )
                     return@runCatching cachedReleaseInfo!! to hasUpdate
                 }
-                
+
                 val result = getLatestRelease(forceRefresh = true)
                 if (result.isSuccess) {
                     val releaseInfo = result.getOrThrow()
@@ -275,7 +279,7 @@ object Updater {
     fun getLatestDownloadUrl(): String? {
         return cachedReleaseInfo?.let { getDownloadUrlForCurrentVariant(it) }
     }
-    
+
     /**
      * Get the latest release info (cached)
      */
