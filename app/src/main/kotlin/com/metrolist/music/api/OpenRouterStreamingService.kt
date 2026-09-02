@@ -1,5 +1,5 @@
 /**
- * Metrolist Project (C) 2026
+ * Pagaska Music Project (C) 2026
  * Licensed under GPL-3.0 | See git history for contributors
  */
 
@@ -56,7 +56,6 @@ object OpenRouterStreamingService {
             Timber.d("Starting streaming translation for $lineCount lines")
 
             try {
-                // Use custom system prompt if provided, otherwise use the default
                 val systemPrompt =
                     if (customSystemPrompt.isNotBlank()) {
                         customSystemPrompt.replace("{lineCount}", lineCount.toString())
@@ -142,8 +141,8 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
                                 addHeader("Authorization", "Bearer ${apiKey.trim()}")
                             }
                         }.addHeader("Content-Type", "application/json")
-                        .addHeader("HTTP-Referer", "https://github.com/MetrolistGroup/Metrolist")
-                        .addHeader("X-Title", "Metrolist")
+                        .addHeader("HTTP-Referer", "https://github.com/Vexcompany/Pagaska-Music")
+                        .addHeader("X-Title", "Pagaska Music")
                         .post(jsonBody.toString().toRequestBody(JSON))
                         .build()
 
@@ -175,7 +174,6 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
                                 val data = currentLine.substring(6)
                                 if (data == "[DONE]") {
                                     Timber.d("Streaming complete, received $chunkCount chunks")
-                                    // Processing complete, parse the full content
                                     val fullContent = contentBuilder.toString()
                                     Timber.d("Full content length: ${fullContent.length}")
                                     val result = parseTranslationContent(fullContent, lineCount)
@@ -207,14 +205,12 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
                                         emit(StreamChunk.Content(chunk))
                                     }
                                 } catch (e: Exception) {
-                                    // Ignore malformed JSON chunks
                                     Timber.v("Ignored malformed chunk: ${e.message}")
                                 }
                             }
                         }
                     }
 
-                    // If we got here without seeing [DONE], try to parse what we have
                     if (contentBuilder.isNotEmpty()) {
                         Timber.w("Stream ended without [DONE] marker, attempting to parse content")
                         val fullContent = contentBuilder.toString()
@@ -239,19 +235,16 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
     ): Result<List<String>> {
         var translatedLines: List<String>? = null
 
-        // Strategy 1: Try direct JSON parsing
         try {
             val jsonArray = JSONArray(content.trim())
             translatedLines = (0 until jsonArray.length()).map { jsonArray.optString(it) }
         } catch (e: Exception) {
-            // Strategy 2: Extract JSON from markdown code blocks
             var cleanedContent = content.replace("```json", "").replace("```", "").trim()
 
             try {
                 val jsonArray = JSONArray(cleanedContent)
                 translatedLines = (0 until jsonArray.length()).map { jsonArray.optString(it) }
             } catch (e2: Exception) {
-                // Strategy 3: Find first [ and last ]
                 val startIdx = cleanedContent.indexOf('[')
                 val endIdx = cleanedContent.lastIndexOf(']')
 
@@ -261,7 +254,6 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
                         val jsonArray = JSONArray(jsonString)
                         translatedLines = (0 until jsonArray.length()).map { jsonArray.optString(it) }
                     } catch (e3: Exception) {
-                        // Strategy 4: Manual line-by-line parsing as last resort
                         translatedLines =
                             cleanedContent
                                 .lines()
@@ -276,7 +268,6 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
             return Result.failure(Exception("Failed to parse translation"))
         }
 
-        // Adjust line count
         return when {
             translatedLines.size == expectedLineCount -> {
                 Result.success(translatedLines)
