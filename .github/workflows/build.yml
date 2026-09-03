@@ -53,7 +53,7 @@ jobs:
       - name: Build Release APK and Run Lint
         run: ./gradlew --console=plain assemble${{ matrix.variantName }}Release :app:lint${{ matrix.variantName }}Release --warning-mode summary
         env:
-          PAGASKA_APPLICATION_ID: com.metrolist.music
+          PAGASKA_APPLICATION_ID: com.pagaska.music
           PAGASKA_APP_NAME: Pagaska Music
           PULL_REQUEST: "false"
           GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -127,7 +127,7 @@ jobs:
       - name: Build Debug APK and Run Lint
         run: ./gradlew --console=plain assemble${{ matrix.variantName }}Debug :app:lint${{ matrix.variantName }}Debug --warning-mode summary
         env:
-          PAGASKA_APPLICATION_ID: com.metrolist.music
+          PAGASKA_APPLICATION_ID: com.pagaska.music
           PAGASKA_APP_NAME: Pagaska Music Debug
           PULL_REQUEST: "false"
           GITHUB_EVENT_NAME: ${{ github.event_name }}
