@@ -19,7 +19,7 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
-val baseApplicationId = "com.metrolist.music"
+val baseApplicationId = "com.pagaska.music"
 val applicationIdOverride = (System.getenv("PAGASKA_APPLICATION_ID") ?: System.getenv("METROLIST_APPLICATION_ID"))?.takeIf { it.isNotBlank() }
 val appNameOverride = (System.getenv("PAGASKA_APP_NAME") ?: System.getenv("METROLIST_APP_NAME"))?.takeIf { it.isNotBlank() }
 val debugKeystorePathOverride = (System.getenv("PAGASKA_DEBUG_KEYSTORE_PATH") ?: System.getenv("METROLIST_DEBUG_KEYSTORE_PATH"))?.takeIf { it.isNotBlank() }
@@ -387,7 +387,7 @@ dependencies {
     implementation(libs.hilt)
     implementation(libs.jsoup)
     ksp(libs.hilt.compiler)
-
+    
     implementation(project(":innertube"))
     implementation(project(":kugou"))
     implementation(project(":lrclib"))
