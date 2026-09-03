@@ -37,15 +37,33 @@ class VolumeNormalizationAudioProcessor : AudioProcessor {
 
     companion object {
         private const val TAG = "VolumeNormalizationProcessor"
+
+        // YouTube's loudness metadata is used to calculate the relative gain needed
+        // to reach the selected LUFS target. A 4 dB makeup stage is intentionally
+        // kept in the PCM processor rather than in ExoPlayer's player.volume, so it
+        // also applies when the Android device volume is already at its normal 1.0
+        // player level. This restores the headroom compensation used by Metrolist's
+        // earlier normalization implementation and avoids the custom processor
+        // making normalized playback noticeably quieter than YouTube.
+        private const val NORMALIZATION_MAKEUP_GAIN_MB = 400
+        private const val MIN_GAIN_MB = -1000
+        private const val MAX_GAIN_MB = 1000
+
         private val EMPTY_BUFFER: ByteBuffer = ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder())
     }
 
     @Synchronized
     fun setTargetGain(gainMb: Int) {
-        if (currentGain.targetGainMb != gainMb) {
-            val linearGain = 10.0.pow(gainMb / 2000.0)
-            currentGain = GainState(gainMb, linearGain)
-            Timber.tag(TAG).d("Target gain set to $gainMb mB (Linear multiplier: $linearGain)")
+        val compensatedGainMb =
+            (gainMb + NORMALIZATION_MAKEUP_GAIN_MB)
+                .coerceIn(MIN_GAIN_MB, MAX_GAIN_MB)
+
+        if (currentGain.targetGainMb != compensatedGainMb) {
+            val linearGain = 10.0.pow(compensatedGainMb / 2000.0)
+            currentGain = GainState(compensatedGainMb, linearGain)
+            Timber.tag(TAG).d(
+                "Target gain set to $gainMb mB; makeup=$NORMALIZATION_MAKEUP_GAIN_MB mB; effective=$compensatedGainMb mB (linear=$linearGain)",
+            )
         }
     }
 
