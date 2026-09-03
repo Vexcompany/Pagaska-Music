@@ -83,8 +83,8 @@ fun AboutScreen(
                 modifier = Modifier.fillMaxWidth().padding(24.dp)
             ) {
                 Image(
-                    painter = painterResource(R.drawable.about_icon),
-                    contentDescription = null,
+                    painter = painterResource(R.drawable.pagaska_logo_master),
+                    contentDescription = "Pagaska Music logo",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.size(84.dp)
                 )
@@ -150,7 +150,7 @@ fun AboutScreen(
             title = "Contributors",
             items = listOf(
                 Material3SettingsItem(
-                    icon = painterResource(R.drawable.about_icon),
+                    icon = painterResource(R.drawable.pagaska_logo_master),
                     title = { Text("Pagaska", fontWeight = FontWeight.SemiBold) },
                     description = { Text("Contributor") }
                 )
