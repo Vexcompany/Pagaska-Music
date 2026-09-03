@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
+import coil3.compose.rememberAsyncImagePainter
 import com.metrolist.music.BuildConfig
 import com.metrolist.music.LocalPlayerAwareWindowInsets
 import com.metrolist.music.R
@@ -150,7 +151,7 @@ fun AboutScreen(
             title = "Contributors",
             items = listOf(
                 Material3SettingsItem(
-                    icon = painterResource(R.drawable.pagaska_logo_master),
+                    icon = rememberAsyncImagePainter(model = PAGASKA_AVATAR_URL),
                     title = { Text("Pagaska", fontWeight = FontWeight.SemiBold) },
                     description = { Text("Contributor") }
                 )
