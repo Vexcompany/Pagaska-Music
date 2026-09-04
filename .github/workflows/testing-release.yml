@@ -18,8 +18,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository and submodules
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Verify protobuf source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f metroproto/listentogether.proto
+          echo "Found metroproto/listentogether.proto"
+          git submodule status --recursive
 
       - name: Set up JDK
         uses: actions/setup-java@v5
@@ -56,6 +67,13 @@ jobs:
 
       - name: Build testing APK
         run: ./gradlew :app:assembleFossDebug --stacktrace
+
+      - name: Verify APK output
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lah app/build/outputs/apk/foss/debug/
+          test -n "$(find app/build/outputs/apk/foss/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
 
       - name: Upload testing APK
         uses: actions/upload-artifact@v4
