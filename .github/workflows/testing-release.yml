@@ -46,16 +46,15 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
           test -f "$HOME/.android/debug.keystore"
+          echo "PAGASKA_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+          echo "PAGASKA_DEBUG_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+          echo "PAGASKA_DEBUG_KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+          echo "PAGASKA_DEBUG_KEY_PASSWORD=android" >> "$GITHUB_ENV"
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Build debug APK
-        env:
-          PAGASKA_DEBUG_KEYSTORE_PATH: ${{ env.HOME }}/.android/debug.keystore
-          PAGASKA_DEBUG_KEYSTORE_PASSWORD: android
-          PAGASKA_DEBUG_KEY_ALIAS: androiddebugkey
-          PAGASKA_DEBUG_KEY_PASSWORD: android
+      - name: Build testing APK
         run: ./gradlew :app:assembleFossDebug --stacktrace
 
       - name: Upload testing APK
