@@ -13,13 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Patch cache write gate
+      - name: Patch cache handling
         shell: python
         run: |
           from pathlib import Path
 
-          path = Path("app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt")
-          text = path.read_text()
+          music_service = Path("app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt")
+          text = music_service.read_text()
 
           text = text.replace(
               "import androidx.media3.datasource.DataSource\n",
@@ -33,26 +33,52 @@ jobs:
           )
 
           old = ").setCacheWriteDataSinkFactory(null)"
-          new = """.setCacheWriteDataSinkFactory {
-                if (dataStore.get(EnableSongCacheKey, true)) {
-                    CacheDataSink.Factory()
-                        .setCache(playerCache)
-                        .createDataSink()
-                } else {
-                    object : DataSink {
-                        override fun open(dataSpec: DataSpec) = Unit
-                        override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
-                        override fun close() = Unit
+          new = """.setCacheWriteDataSinkFactory(
+                object : DataSink.Factory {
+                    override fun createDataSink(): DataSink {
+                        return if (dataStore.get(EnableSongCacheKey, true)) {
+                            CacheDataSink.Factory()
+                                .setCache(playerCache)
+                                .createDataSink()
+                        } else {
+                            object : DataSink {
+                                override fun open(dataSpec: DataSpec) = Unit
+                                override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
+                                override fun close() = Unit
+                            }
+                        }
                     }
                 }
-            }"""
+            )"""
 
           if old not in text:
               raise SystemExit("expected cache sink configuration not found")
           if text.count(old) != 1:
               raise SystemExit("cache sink configuration occurs an unexpected number of times")
+          music_service.write_text(text.replace(old, new, 1))
 
-          path.write_text(text.replace(old, new, 1))
+          cache_vm = Path("app/src/main/kotlin/com/metrolist/music/viewmodels/CachePlaylistViewModel.kt")
+          text = cache_vm.read_text()
+
+          old = """            database.query {
+                    getSongsByIds(listOf(songId)).firstOrNull()?.let { song ->
+                        if (!song.song.isDownloaded) {
+                            update(song.song.copy(dateDownload = null, isCached = false))
+                        }
+                    }
+                }
+"""
+          new = """            val song = database.getSongsByIds(listOf(songId)).firstOrNull()
+            if (song != null && !song.song.isDownloaded) {
+                database.query {
+                    update(song.song.copy(dateDownload = null, isCached = false))
+                }
+            }
+"""
+
+          if old not in text:
+              raise SystemExit("expected cache removal database block not found")
+          cache_vm.write_text(text.replace(old, new, 1))
 
       - name: Compile check
         run: ./gradlew :app:compileFossDebugKotlin --no-daemon
@@ -62,9 +88,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt .github/workflows/pagaska-cache-hotfix.yml
+          git add app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt app/src/main/kotlin/com/metrolist/music/viewmodels/CachePlaylistViewModel.kt .github/workflows/pagaska-cache-hotfix.yml
           git diff --cached --quiet && exit 0
-          git commit -m "fix(cache): disable player cache writes when cache is off"
+          git commit -m "fix(cache): gate player writes and repair cache library cleanup"
           git rm .github/workflows/pagaska-cache-hotfix.yml
           git commit -m "chore: remove temporary cache hotfix workflow"
           git push
