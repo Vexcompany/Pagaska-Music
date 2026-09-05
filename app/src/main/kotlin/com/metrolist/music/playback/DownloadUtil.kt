@@ -67,11 +67,14 @@ constructor(
 
     val downloads = MutableStateFlow<Map<String, Download>>(emptyMap())
 
+    // Downloads are persisted in downloadCache. The resolver must use that same cache
+    // for both reads and writes; using playerCache here makes a download contaminate
+    // the streaming cache and is the root of the "Downloaded + Cached" duplication.
     private val dataSourceFactory =
         ResolvingDataSource.Factory(
             CacheDataSource
                 .Factory()
-                .setCache(playerCache)
+                .setCache(downloadCache)
                 .setUpstreamDataSourceFactory(
                     OkHttpDataSource.Factory(
                         OkHttpClient.Builder()
@@ -90,7 +93,7 @@ constructor(
             val mediaId = dataSpec.key ?: error("No media id")
             val length = if (dataSpec.length >= 0) dataSpec.length else 1
 
-            if (playerCache.isCached(mediaId, dataSpec.position, length)) {
+            if (downloadCache.isCached(mediaId, dataSpec.position, length)) {
                 return@Factory dataSpec
             }
 
@@ -162,7 +165,8 @@ constructor(
                     duration = playbackData.videoDetails?.lengthSeconds?.toIntOrNull() ?: 0,
                     thumbnailUrl = playbackData.videoDetails?.thumbnail?.thumbnails?.lastOrNull()?.url,
                     dateDownload = null,
-                    isDownloaded = false
+                    isDownloaded = false,
+                    isCached = false,
                 )
 
                 upsert(updatedSong)
