@@ -87,11 +87,10 @@ class CachePlaylistViewModel
         fun removeSongFromCache(songId: String) {
             playerCache.removeResource(songId)
             viewModelScope.launch {
-                database.query {
-                    getSongsByIds(listOf(songId)).firstOrNull()?.let { song ->
-                        if (!song.song.isDownloaded) {
-                            update(song.song.copy(dateDownload = null, isCached = false))
-                        }
+                val song = database.getSongsByIds(listOf(songId)).firstOrNull()
+                if (song != null && !song.song.isDownloaded) {
+                    database.query {
+                        update(song.song.copy(dateDownload = null, isCached = false))
                     }
                 }
             }
