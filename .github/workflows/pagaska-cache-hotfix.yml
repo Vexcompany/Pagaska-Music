@@ -21,40 +21,45 @@ jobs:
           path = Path("app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt")
           text = path.read_text()
 
-          text = text.replace(
-              "import androidx.media3.datasource.DataSource\n",
-              "import androidx.media3.datasource.DataSink\nimport androidx.media3.datasource.DataSource\nimport androidx.media3.datasource.DataSpec\n",
-              1,
-          )
-          text = text.replace(
-              "import androidx.media3.datasource.cache.CacheDataSource\n",
-              "import androidx.media3.datasource.cache.CacheDataSink\nimport androidx.media3.datasource.cache.CacheDataSource\n",
-              1,
-          )
+          if "import androidx.media3.datasource.DataSink" not in text:
+              text = text.replace(
+                  "import androidx.media3.datasource.DataSource\n",
+                  "import androidx.media3.datasource.DataSink\nimport androidx.media3.datasource.DataSource\nimport androidx.media3.datasource.DataSpec\n",
+                  1,
+              )
+          if "import androidx.media3.datasource.cache.CacheDataSink" not in text:
+              text = text.replace(
+                  "import androidx.media3.datasource.cache.CacheDataSource\n",
+                  "import androidx.media3.datasource.cache.CacheDataSink\nimport androidx.media3.datasource.cache.CacheDataSource\n",
+                  1,
+              )
 
-          old = ").setCacheWriteDataSinkFactory(null)"
-          new = """.setCacheWriteDataSinkFactory(
-                object : DataSink.Factory {
-                    override fun createDataSink(): DataSink {
-                        return if (dataStore.get(EnableSongCacheKey, true)) {
-                            CacheDataSink.Factory()
-                                .setCache(playerCache)
-                                .createDataSink()
-                        } else {
-                            object : DataSink {
-                                override fun open(dataSpec: DataSpec) = Unit
-                                override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
-                                override fun close() = Unit
+          old = """.setCache(playerCache)
+                    .setUpstreamDataSourceFactory("""
+          new = """.setCache(playerCache)
+                    .setCacheWriteDataSinkFactory(
+                        object : DataSink.Factory {
+                            override fun createDataSink(): DataSink {
+                                return if (dataStore.get(EnableSongCacheKey, true)) {
+                                    CacheDataSink.Factory()
+                                        .setCache(playerCache)
+                                        .createDataSink()
+                                } else {
+                                    object : DataSink {
+                                        override fun open(dataSpec: DataSpec) = Unit
+                                        override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
+                                        override fun close() = Unit
+                                    }
+                                }
                             }
-                        }
-                    }
-                }
-            )"""
+                        },
+                    )
+                    .setUpstreamDataSourceFactory("""
 
           if old not in text:
-              raise SystemExit("expected cache sink configuration not found")
-          if text.count(old) != 1:
-              raise SystemExit("cache sink configuration occurs an unexpected number of times")
+              if "setCacheWriteDataSinkFactory(" in text:
+                  raise SystemExit("cache sink patch is already present but not in expected form")
+              raise SystemExit("expected inner player cache configuration not found")
 
           path.write_text(text.replace(old, new, 1))
 
