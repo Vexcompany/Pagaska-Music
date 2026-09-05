@@ -1,0 +1,69 @@
+name: Pagaska cache hotfix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch cache write gate
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt")
+          text = path.read_text()
+
+          text = text.replace(
+              "import androidx.media3.datasource.DataSource\n",
+              "import androidx.media3.datasource.DataSink\nimport androidx.media3.datasource.DataSource\nimport androidx.media3.datasource.DataSpec\n",
+              1,
+          )
+          text = text.replace(
+              "import androidx.media3.datasource.cache.CacheDataSource\n",
+              "import androidx.media3.datasource.cache.CacheDataSink\nimport androidx.media3.datasource.cache.CacheDataSource\n",
+              1,
+          )
+
+          old = ").setCacheWriteDataSinkFactory(null)"
+          new = """.setCacheWriteDataSinkFactory {
+                if (dataStore.get(EnableSongCacheKey, true)) {
+                    CacheDataSink.Factory(playerCache).createDataSink()
+                } else {
+                    object : DataSink {
+                        override fun open(dataSpec: DataSpec) = Unit
+                        override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
+                        override fun close() = Unit
+                    }
+                }
+            }"""
+
+          if old not in text:
+              raise SystemExit("expected cache sink configuration not found")
+          if text.count(old) != 1:
+              raise SystemExit("cache sink configuration occurs an unexpected number of times")
+
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+      - name: Compile check
+        run: ./gradlew :app:compileDebugKotlin --no-daemon
+
+      - name: Commit and remove hotfix workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt .github/workflows/pagaska-cache-hotfix.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(cache): disable player cache writes when cache is off"
+          git rm .github/workflows/pagaska-cache-hotfix.yml
+          git commit -m "chore: remove temporary cache hotfix workflow"
+          git push
