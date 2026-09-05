@@ -55,7 +55,7 @@ jobs:
           path.write_text(text.replace(old, new, 1))
 
       - name: Compile check
-        run: ./gradlew :app:compileDebugKotlin --no-daemon
+        run: ./gradlew :app:compileFossDebugKotlin --no-daemon
 
       - name: Commit and remove hotfix workflow
         shell: bash
