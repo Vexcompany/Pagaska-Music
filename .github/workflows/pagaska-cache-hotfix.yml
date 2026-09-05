@@ -12,11 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Patch cache write gate
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           path = Path("app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt")
           text = path.read_text()
@@ -34,34 +37,49 @@ jobs:
                   1,
               )
 
-          old = """.setCache(playerCache)
-                    .setUpstreamDataSourceFactory("""
-          new = """.setCache(playerCache)
-                    .setCacheWriteDataSinkFactory(
-                        object : DataSink.Factory {
-                            override fun createDataSink(): DataSink {
-                                return if (dataStore.get(EnableSongCacheKey, true)) {
-                                    CacheDataSink.Factory()
-                                        .setCache(playerCache)
-                                        .createDataSink()
-                                } else {
-                                    object : DataSink {
-                                        override fun open(dataSpec: DataSpec) = Unit
-                                        override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
-                                        override fun close() = Unit
-                                    }
-                                }
-                            }
-                        },
-                    )
-                    .setUpstreamDataSourceFactory("""
+          start = text.index("    private fun createCacheDataSource(): CacheDataSource.Factory =")
+          end = text.index("\n    private var isSilenceSkipping", start)
 
-          if old not in text:
-              if "setCacheWriteDataSinkFactory(" in text:
-                  raise SystemExit("cache sink patch is already present but not in expected form")
-              raise SystemExit("expected inner player cache configuration not found")
+          replacement = '''    private fun createCacheDataSource(): CacheDataSource.Factory {
+        val playerCacheDataSource =
+            CacheDataSource.Factory()
+                .setCache(playerCache)
+                .setUpstreamDataSourceFactory(
+                    DefaultDataSource.Factory(
+                        this,
+                        OkHttpDataSource.Factory(
+                            OkHttpClient
+                                .Builder()
+                                .proxy(YouTube.proxy)
+                                .proxyAuthenticator { _, response ->
+                                    YouTube.proxyAuth?.let { auth ->
+                                        response.request
+                                            .newBuilder()
+                                            .header("Proxy-Authorization", auth)
+                                            .build()
+                                    } ?: response.request
+                                }.build(),
+                        ),
+                    ),
+                )
+                .setCacheWriteDataSinkFactory(
+                    if (dataStore.get(EnableSongCacheKey, true)) {
+                        CacheDataSink.Factory().setCache(playerCache)
+                    } else {
+                        null
+                    },
+                )
 
-          path.write_text(text.replace(old, new, 1))
+        return CacheDataSource.Factory()
+            .setCache(downloadCache)
+            .setUpstreamDataSourceFactory(playerCacheDataSource)
+            .setCacheWriteDataSinkFactory(null)
+            .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+'''
+
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text)
 
       - name: Compile check
         run: ./gradlew :app:compileFossDebugKotlin --no-daemon
