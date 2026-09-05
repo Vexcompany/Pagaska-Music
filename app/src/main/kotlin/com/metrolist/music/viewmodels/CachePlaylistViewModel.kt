@@ -45,15 +45,12 @@ class CachePlaylistViewModel
                     val hideExplicit = context.dataStore.get(HideExplicitKey, false)
                     val hideVideoSongs = context.dataStore.get(HideVideoSongsKey, false)
 
-                    // Candidate set: anything currently present in either cache. We no longer
-                    // SET dateDownload here — that decision belongs solely to MusicService's
-                    // markCachedIfFullyDownloaded(), which only fires once a track actually
-                    // finishes playing naturally (MEDIA_ITEM_TRANSITION_REASON_AUTO). This loop
-                    // only displays already-flagged songs and self-heals: if a song's dateDownload
-                    // is set but its backing cache data is gone now (evicted, or manually removed
-                    // via removeSongFromCache), the flag gets cleared so the list — and the DB —
-                    // stay honest.
-                    val candidateIds = playerCache.keys.toSet() + downloadCache.keys.toSet()
+                    // The Cache Playlist is a view of the actual player cache, not a
+                    // historical download/date flag. A song is shown as cached only when
+                    // its complete media range is present in playerCache. Downloaded songs
+                    // are deliberately excluded: Downloaded and streaming Cached are two
+                    // separate library states even when both caches contain the same id.
+                    val candidateIds = playerCache.keys.toSet()
                     val songs =
                         if (candidateIds.isNotEmpty()) {
                             database.getSongsByIds(candidateIds.toList())
@@ -61,24 +58,18 @@ class CachePlaylistViewModel
                             emptyList()
                         }
 
-                    val flagged = songs.filter { it.song.dateDownload != null }
                     val stillValid = mutableListOf<Song>()
 
-                    for (song in flagged) {
-                        val contentLength = song.format?.contentLength
-                        val stillCached =
-                            song.song.isDownloaded ||
-                                (
-                                    contentLength != null &&
-                                        (
-                                            downloadCache.isCached(song.song.id, 0, contentLength) ||
-                                                playerCache.isCached(song.song.id, 0, contentLength)
-                                        )
-                                )
-                        if (stillCached) {
+                    for (song in songs) {
+                        if (song.song.isDownloaded) continue
+
+                        val contentLength = song.format?.contentLength ?: continue
+                        if (playerCache.isCached(song.song.id, 0, contentLength)) {
                             stillValid += song
-                        } else {
-                            database.query { update(song.song.copy(dateDownload = null)) }
+                        } else if (song.song.dateDownload != null) {
+                            // Clean up the legacy marker when the LRU cache has evicted
+                            // the complete file. This keeps old database state harmless.
+                            database.query { update(song.song.copy(dateDownload = null, isCached = false)) }
                         }
                     }
 
@@ -95,5 +86,14 @@ class CachePlaylistViewModel
 
         fun removeSongFromCache(songId: String) {
             playerCache.removeResource(songId)
+            viewModelScope.launch {
+                database.query {
+                    getSongsByIds(listOf(songId)).firstOrNull()?.let { song ->
+                        if (!song.song.isDownloaded) {
+                            update(song.song.copy(dateDownload = null, isCached = false))
+                        }
+                    }
+                }
+            }
         }
     }
