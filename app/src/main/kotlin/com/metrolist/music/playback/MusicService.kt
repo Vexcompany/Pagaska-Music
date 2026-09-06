@@ -1,6 +1,6 @@
 /**
- * Metrolist Project (C) 2026
- * Licensed under GPL-3.0 | See git history for contributors
+ * Pagaska Music Project (C) 2026
+ * Licensed under GPL-3.0
  */
 
 @file:Suppress("DEPRECATION")
@@ -27,6 +27,7 @@ import android.media.audiofx.AudioEffect
 import com.metrolist.music.playback.audio.VolumeNormalizationAudioProcessor
 import com.metrolist.music.utils.safeDataStoreEdit
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.Bundle
@@ -55,6 +56,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
@@ -389,6 +391,17 @@ class MusicService :
     @DownloadCache
     lateinit var downloadCache: Cache
 
+    /**
+     * Runtime mirror of [EnableSongCacheKey].
+     *
+     * Read by [CacheSwitchDataSource] on every open() from the ExoPlayer loading thread, so it has
+     * to stay a cheap volatile read — never a DataStore call. Kept in sync by the collector set up
+     * in onCreate(), which means flipping the switch in Settings applies to the very next read
+     * without rebuilding the player or interrupting playback.
+     */
+    @Volatile
+    private var songCacheEnabled: Boolean = true
+
     lateinit var player: ExoPlayer
         private set
     private var secondaryPlayer: ExoPlayer? = null
@@ -624,6 +637,10 @@ class MusicService :
         // This consolidates ~15 main-thread-blocking DataStore reads into 1.
         startupPrefs = runBlocking(Dispatchers.IO) { dataStore.data.first() }
 
+        // Seed the cache switch from the same batch read, before createExoPlayer() builds the data
+        // source chain: the collector below only emits once this coroutine starts running.
+        songCacheEnabled = startupPrefs!![EnableSongCacheKey] ?: true
+
         // 3. Connect the processor to the service
         // handled in createExoPlayer
 
@@ -779,6 +796,21 @@ class MusicService :
                 }
             }
         }
+
+        // Watch the "enable song cache" switch. The gate itself lives in CacheSwitchDataSource
+        // (see createCacheDataSource()); this collector only mirrors the preference into a volatile
+        // field, so playback is never interrupted by a settings change.
+        dataStore.data
+            .map { it[EnableSongCacheKey] ?: true }
+            .distinctUntilChanged()
+            .collect(scope) { enabled ->
+                songCacheEnabled = enabled
+                Timber.tag(TAG).i(
+                    "Song cache %s — streaming will %s files/exoplayer",
+                    if (enabled) "ENABLED" else "DISABLED",
+                    if (enabled) "use" else "bypass",
+                )
+            }
 
         // Watch for audio quality setting changes
         var isFirstQualityEmit = true
@@ -3334,34 +3366,107 @@ class MusicService :
         }
     }
 
-    private fun createCacheDataSource(): CacheDataSource.Factory =
-        CacheDataSource
+    /**
+     * Builds the streaming data-source chain:
+     *
+     * ```
+     * ResolvingDataSource            (resolves the googlevideo URL, see createDataSourceFactory)
+     *   └── downloadCache layer      (READ-ONLY: streamed audio must never land in the download
+     *         │                       cache, that one belongs to DownloadManager)
+     *         └── CacheSwitchDataSource  <— "enable song cache" gate
+     *               ├── playerCache layer  (read + write into files/exoplayer)
+     *               └── DefaultDataSource → OkHttp  (direct, cache completely bypassed)
+     * ```
+     *
+     * `CacheDataSource.Factory.setCacheWriteDataSinkFactory(null)` is what makes a layer read-only
+     * in media3 (the factory sets `cacheIsReadOnly = writeSinkFactory == null`). Only the
+     * downloadCache layer uses it: the playerCache layer exists precisely to write streamed audio,
+     * so gating it has to happen by choosing whether that layer is used at all.
+     *
+     * Doing the choice per `open()` (instead of once, at construction) is the whole point: the
+     * switch then applies to the next chunk read, without recreating the player or the media source
+     * factory.
+     */
+    private fun createCacheDataSource(): DataSource.Factory {
+        val upstreamFactory =
+            DefaultDataSource.Factory(
+                this,
+                OkHttpDataSource.Factory(
+                    OkHttpClient
+                        .Builder()
+                        .proxy(YouTube.proxy)
+                        .proxyAuthenticator { _, response ->
+                            YouTube.proxyAuth?.let { auth ->
+                                response.request
+                                    .newBuilder()
+                                    .header("Proxy-Authorization", auth)
+                                    .build()
+                            } ?: response.request
+                        }.build(),
+                ),
+            )
+
+        val playerCacheFactory =
+            CacheDataSource
+                .Factory()
+                .setCache(playerCache)
+                .setUpstreamDataSourceFactory(upstreamFactory)
+                .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+
+        val switchingFactory =
+            DataSource.Factory {
+                CacheSwitchDataSource(playerCacheFactory, upstreamFactory)
+            }
+
+        return CacheDataSource
             .Factory()
             .setCache(downloadCache)
-            .setUpstreamDataSourceFactory(
-                CacheDataSource
-                    .Factory()
-                    .setCache(playerCache)
-                    .setUpstreamDataSourceFactory(
-                        DefaultDataSource.Factory(
-                            this,
-                            OkHttpDataSource.Factory(
-                                OkHttpClient
-                                    .Builder()
-                                    .proxy(YouTube.proxy)
-                                    .proxyAuthenticator { _, response ->
-                                        YouTube.proxyAuth?.let { auth ->
-                                            response.request
-                                                .newBuilder()
-                                                .header("Proxy-Authorization", auth)
-                                                .build()
-                                        } ?: response.request
-                                    }.build(),
-                            ),
-                        ),
-                    ),
-            ).setCacheWriteDataSinkFactory(null)
+            .setUpstreamDataSourceFactory(switchingFactory)
+            .setCacheWriteDataSinkFactory(null)
             .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
+    /**
+     * Picks between the cache-backed data source and a direct (no-cache) one at `open()` time.
+     *
+     * ExoPlayer keeps a [DataSource] instance alive across many open()/close() cycles, so the
+     * decision is re-evaluated on every open: turning the song cache off stops both writes *and*
+     * reads of `files/exoplayer` from the next chunk onwards, and turning it back on resumes
+     * caching immediately — no player rebuild, no restart, no interruption.
+     */
+    private inner class CacheSwitchDataSource(
+        private val cachedFactory: DataSource.Factory,
+        private val directFactory: DataSource.Factory,
+    ) : DataSource {
+        private var active: DataSource? = null
+
+        override fun open(dataSpec: DataSpec): Long {
+            val next = (if (songCacheEnabled) cachedFactory else directFactory).createDataSource()
+            val previous = active
+            active = next
+            if (previous != null && previous !== next) {
+                runCatching { previous.close() }
+            }
+            return next.open(dataSpec)
+        }
+
+        override fun read(
+            buffer: ByteArray,
+            offset: Int,
+            length: Int,
+        ): Int = active?.read(buffer, offset, length) ?: C.RESULT_END_OF_INPUT
+
+        override fun getUri(): Uri? = active?.uri
+
+        override fun getResponseHeaders(): Map<String, List<String>> =
+            active?.responseHeaders ?: emptyMap()
+
+        override fun close() {
+            val current = active
+            active = null
+            if (current != null) runCatching { current.close() }
+        }
+    }
 
     private var isSilenceSkipping = false
 
@@ -3647,7 +3752,8 @@ class MusicService :
             val shouldBypassCache = bypassCacheForQualityChange.contains(mediaId)
 
             if (!shouldBypassCache) {
-                val usePlayerCache = dataStore.get(EnableSongCacheKey, true)
+                // Volatile read — no runBlocking/DataStore round-trip on the loader thread.
+                val usePlayerCache = songCacheEnabled
 
                 val contentLength =
                     runBlocking(Dispatchers.IO) {
