@@ -1,6 +1,6 @@
 /**
- * Metrolist Project (C) 2026
- * Licensed under GPL-3.0 | See git history for contributors
+ * Pagaska Music Project (C) 2026
+ * Licensed under GPL-3.0
  */
 
 package com.metrolist.music.utils
