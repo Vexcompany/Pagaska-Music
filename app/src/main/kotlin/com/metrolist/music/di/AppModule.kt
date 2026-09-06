@@ -1,6 +1,6 @@
 /**
- * Metrolist Project (C) 2026
- * Licensed under GPL-3.0 | See git history for contributors
+ * Pagaska Music Project (C) 2026
+ * Licensed under GPL-3.0
  */
 
 package com.metrolist.music.di
@@ -12,7 +12,6 @@ import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheSpan
 import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.ContentMetadataMutations
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import com.metrolist.music.constants.MaxSongCacheSizeKey
@@ -20,6 +19,8 @@ import com.metrolist.music.db.InternalDatabase
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.listentogether.ListenTogetherClient
 import com.metrolist.music.listentogether.ListenTogetherManager
+import com.metrolist.music.playback.DynamicLruCacheEvictor
+import com.metrolist.music.utils.SongCacheConfig
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
 import dagger.Module
@@ -168,15 +169,18 @@ object AppModule {
         databaseProvider: DatabaseProvider,
     ): Cache =
         LazyCache {
-            val cacheSize = context.dataStore[MaxSongCacheSizeKey] ?: 1024
-            val evictor =
-                when (cacheSize) {
-                    -1 -> NoOpCacheEvictor()
-                    else -> LeastRecentlyUsedCacheEvictor(cacheSize * 1024 * 1024L)
-                }
+            // Seed the runtime byte budget once, before the first eviction can happen. Later
+            // changes are pushed by the DataStore collector in App.observeSettingsChanges(), so the
+            // evictor never has to block on I/O while SimpleCache's monitor is held.
+            SongCacheConfig.updateIfUnset(
+                context.dataStore[MaxSongCacheSizeKey] ?: SongCacheConfig.DEFAULT_MB,
+            )
             SimpleCache(
                 context.filesDir.resolve("exoplayer"),
-                evictor,
+                // Dynamic on purpose: LeastRecentlyUsedCacheEvictor takes an immutable maxBytes and
+                // this Cache is a singleton, so the "max song cache size" slider would otherwise
+                // only apply after the process is killed.
+                DynamicLruCacheEvictor(),
                 databaseProvider,
             )
         }
