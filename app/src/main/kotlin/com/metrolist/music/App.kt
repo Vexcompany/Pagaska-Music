@@ -1,6 +1,6 @@
 /**
- * Metrolist Project (C) 2026
- * Licensed under GPL-3.0 | See git history for contributors
+ * Pagaska Music Project (C) 2026
+ * Licensed under GPL-3.0
  */
 
 package com.metrolist.music
@@ -31,6 +31,7 @@ import com.metrolist.music.di.ApplicationScope
 import com.metrolist.music.extensions.toEnum
 import com.metrolist.music.extensions.toInetSocketAddress
 import com.metrolist.music.utils.CrashHandler
+import com.metrolist.music.utils.SongCacheConfig
 import com.metrolist.music.utils.YTPlayerUtils
 import com.metrolist.music.utils.cipher.CipherDeobfuscator
 import com.metrolist.music.utils.dataStore
@@ -201,6 +202,24 @@ class App :
     }
 
     private fun observeSettingsChanges() {
+        // Song cache byte budget. Pushed into SongCacheConfig so DynamicLruCacheEvictor can honour
+        // the slider at runtime: the SimpleCache holding files/exoplayer is a singleton and its
+        // evictor cannot be replaced after construction.
+        applicationScope.launch(Dispatchers.IO) {
+            dataStore.data
+                .map { it[MaxSongCacheSizeKey] ?: SongCacheConfig.DEFAULT_MB }
+                .distinctUntilChanged()
+                .collect { sizeInMb -> SongCacheConfig.update(sizeInMb) }
+        }
+
+        // Image cache limit, kept fresh for newImageLoader() (see setCoilDiskCacheSize).
+        applicationScope.launch(Dispatchers.IO) {
+            dataStore.data
+                .map { it[MaxImageCacheSizeKey] ?: 512 }
+                .distinctUntilChanged()
+                .collect { sizeInMb -> cachedCoilCacheSize = sizeInMb }
+        }
+
         applicationScope.launch(Dispatchers.IO) {
             dataStore.data
                 .map { it[VisitorDataKey] }
@@ -292,6 +311,19 @@ class App :
 
     @Volatile
     private var cachedCoilCacheSize: Int? = null
+
+    /**
+     * Publishes a new Coil disk-cache limit.
+     *
+     * [newImageLoader] prefers the pre-read value to avoid a runBlocking on the main thread, so
+     * without this the rebuilt loader would keep the limit that was snapshotted at process start
+     * and the "max image cache size" slider would only apply after a restart. StorageSettings calls
+     * this immediately before `SingletonImageLoader.reset()`; the collector in
+     * [observeSettingsChanges] keeps it in sync for every other write path.
+     */
+    fun setCoilDiskCacheSize(sizeMb: Int) {
+        cachedCoilCacheSize = sizeMb
+    }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         val cacheSize = cachedCoilCacheSize ?: runBlocking {
