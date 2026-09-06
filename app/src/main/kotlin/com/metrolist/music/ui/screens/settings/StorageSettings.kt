@@ -1,6 +1,6 @@
 /**
- * Metrolist Project (C) 2026
- * Licensed under GPL-3.0 | See git history for contributors
+ * Pagaska Music Project (C) 2026
+ * Licensed under GPL-3.0
  */
 
 package com.metrolist.music.ui.screens.settings
@@ -46,6 +46,7 @@ import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
 import coil3.annotation.ExperimentalCoilApi
 import coil3.imageLoader
+import com.metrolist.music.App
 import com.metrolist.music.LocalDatabase
 import com.metrolist.music.LocalPlayerAwareWindowInsets
 import com.metrolist.music.LocalPlayerConnection
@@ -54,6 +55,7 @@ import com.metrolist.music.constants.EnableSongCacheKey
 import com.metrolist.music.constants.MaxImageCacheSizeKey
 import com.metrolist.music.constants.MaxSongCacheSizeKey
 import com.metrolist.music.extensions.tryOrNull
+import com.metrolist.music.utils.SongCacheConfig
 import com.metrolist.music.ui.component.ActionPromptDialog
 import com.metrolist.music.ui.component.IconButton
 import com.metrolist.music.ui.component.Material3SettingsGroup
@@ -116,24 +118,34 @@ fun StorageSettings(
     var downloadCacheSize by remember {
         mutableLongStateOf(tryOrNull { downloadCache.cacheSpace } ?: 0)
     }
+    val imageCacheLimitBytes = maxImageCacheSize * 1024L * 1024L
+    val songCacheLimitBytes = SongCacheConfig.fromPreference(maxSongCacheSize)
+    // A limit of 0 (disabled) used to divide by zero -> Infinity -> a full bar, and -1
+    // (unlimited) produced a negative ratio -> an empty bar. Neither says anything useful, so both
+    // render as 0 and the text below carries the real numbers.
     val imageCacheProgress by animateFloatAsState(
         targetValue =
-            (imageCacheSize.toFloat() / (maxImageCacheSize * 1024 * 1024L)).coerceIn(
-                0f,
-                1f,
-            ),
+            if (imageCacheLimitBytes <= 0L) {
+                0f
+            } else {
+                (imageCacheSize.toFloat() / imageCacheLimitBytes.toFloat()).coerceIn(0f, 1f)
+            },
         label = "imageCacheProgress",
     )
     val playerCacheProgress by animateFloatAsState(
         targetValue =
-            (playerCacheSize.toFloat() / (maxSongCacheSize * 1024 * 1024L)).coerceIn(
-                0f,
-                1f,
-            ),
+            if (songCacheLimitBytes <= 0L || songCacheLimitBytes == Long.MAX_VALUE) {
+                0f
+            } else {
+                (playerCacheSize.toFloat() / songCacheLimitBytes.toFloat()).coerceIn(0f, 1f)
+            },
         label = "playerCacheProgress",
     )
 
     LaunchedEffect(maxImageCacheSize) {
+        // newImageLoader() prefers App's pre-read value, so publish the new limit *before* the
+        // reset — otherwise the rebuilt loader silently keeps the old one until a restart.
+        (context.applicationContext as? App)?.setCoilDiskCacheSize(maxImageCacheSize)
         SingletonImageLoader.reset()
         if (maxImageCacheSize == 0) {
             coroutineScope.launch(Dispatchers.IO) {
@@ -142,6 +154,9 @@ fun StorageSettings(
         }
     }
     LaunchedEffect(maxSongCacheSize) {
+        // Push the new budget straight into the evictor: SimpleCache is a singleton, so this is the
+        // only way the slider takes effect without killing the process.
+        SongCacheConfig.update(maxSongCacheSize)
         if (maxSongCacheSize == 0) {
             coroutineScope.launch(Dispatchers.IO) {
                 playerCache.keys.forEach { key ->
@@ -357,7 +372,10 @@ fun StorageSettings(
                                 }
                             )
                             Slider(
-                                value = songCacheValues.indexOf(maxSongCacheSize).toFloat(),
+                                // A value that is not one of the stops (e.g. left over from an
+                                // older build) used to produce value = -1f; fall back to the first
+                                // stop, the label below still shows the stored size.
+                                value = songCacheValues.indexOf(maxSongCacheSize).coerceAtLeast(0).toFloat(),
                                 enabled = enableSongCache,
                                 onValueChange = {
                                     val newValue = songCacheValues[it.roundToInt()]
@@ -387,13 +405,11 @@ fun StorageSettings(
                                 Spacer(modifier = Modifier.padding(2.dp))
                                 Text(
                                     text =
-                                        if (maxSongCacheSize == -1) {
+                                        if (maxSongCacheSize == SongCacheConfig.UNLIMITED_MB) {
                                             Formatter.formatShortFileSize(context, playerCacheSize)
                                         } else {
                                             "${Formatter.formatShortFileSize(context, playerCacheSize)} / ${
-                                                Formatter.formatShortFileSize(context, 
-                                                    maxSongCacheSize * 1024 * 1024L,
-                                                )
+                                                Formatter.formatShortFileSize(context, songCacheLimitBytes)
                                             }"
                                         },
                                     style = MaterialTheme.typography.bodyMedium,
@@ -430,7 +446,7 @@ fun StorageSettings(
                                         },
                                 )
                                 Slider(
-                                    value = imageCacheValues.indexOf(maxImageCacheSize).toFloat(),
+                                    value = imageCacheValues.indexOf(maxImageCacheSize).coerceAtLeast(0).toFloat(),
                                     onValueChange = {
                                         val newValue = imageCacheValues[it.roundToInt()]
                                         val newLimitInBytes = newValue * 1024 * 1024L
