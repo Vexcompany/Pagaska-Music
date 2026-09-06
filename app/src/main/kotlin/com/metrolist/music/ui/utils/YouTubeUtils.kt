@@ -41,7 +41,13 @@ fun String.resize(
         }
     }
 
-    // YouTube's maxresdefault.jpg is optional. Keep the thumbnail variant
-    // supplied by YouTube instead of upgrading it to a URL that may 404.
+    // YouTube's maxresdefault.jpg is optional. Do not upgrade other
+    // thumbnail variants to maxresdefault because some videos return 404.
+    // For legacy Pagaska entries that already contain maxresdefault, fall
+    // back to hqdefault so those thumbnails remain displayable.
+    if (startsWith("https://i.ytimg.com/") && contains("/maxresdefault.jpg")) {
+        return replace("/maxresdefault.jpg", "/hqdefault.jpg")
+    }
+
     return this
 }
