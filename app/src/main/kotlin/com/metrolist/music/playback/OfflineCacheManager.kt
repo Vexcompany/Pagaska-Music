@@ -5,16 +5,21 @@
 
 package com.metrolist.music.playback
 
+import android.content.Context
+import android.widget.Toast
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheSpan
+import com.metrolist.music.R
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.utils.SongCacheConfig
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Coordinates the database flag and the physical player-cache resource used for automatic Offline
@@ -24,8 +29,11 @@ import timber.log.Timber
 class OfflineCacheManager(
     private val database: MusicDatabase,
     private val playerCache: Cache,
+    @ApplicationContext private val context: Context,
     private val applicationScope: CoroutineScope,
 ) {
+    private val capacityWarningShown = AtomicBoolean(false)
+
     init {
         OfflineCacheRegistry.setCacheActivityListener { span ->
             applicationScope.launch(Dispatchers.IO) {
@@ -33,6 +41,7 @@ class OfflineCacheManager(
             }
         }
         SongCacheConfig.setLimitChangeListener {
+            capacityWarningShown.set(false)
             applicationScope.launch(Dispatchers.IO) {
                 runCatching { enforceCapacity() }
                     .onFailure { error ->
@@ -95,6 +104,7 @@ class OfflineCacheManager(
 
         val maxBytes = SongCacheConfig.maxBytes
         if (maxBytes != Long.MAX_VALUE && protectedCacheBytes() + contentLength > maxBytes) {
+            warnCapacityFullOnce()
             Timber.tag(TAG).i("Offline Cache capacity full; keeping %s as temporary cache", mediaId)
             return@withContext false
         }
@@ -185,6 +195,17 @@ class OfflineCacheManager(
         OfflineCacheRegistry.snapshot().sumOf { mediaId ->
             playerCache.getCachedSpans(mediaId).sumOf { it.length }
         }
+
+    private suspend fun warnCapacityFullOnce() {
+        if (!capacityWarningShown.compareAndSet(false, true)) return
+        withContext(Dispatchers.Main) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.offline_cache_capacity_full),
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
 
     private companion object {
         const val TAG = "OfflineCacheManager"
