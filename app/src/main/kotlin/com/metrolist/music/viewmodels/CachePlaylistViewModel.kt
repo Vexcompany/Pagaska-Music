@@ -17,6 +17,7 @@ import com.metrolist.music.di.DownloadCache
 import com.metrolist.music.di.PlayerCache
 import com.metrolist.music.extensions.filterExplicit
 import com.metrolist.music.extensions.filterVideoSongs
+import com.metrolist.music.playback.OfflineCacheRegistry
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -81,6 +82,7 @@ class CachePlaylistViewModel
                             // The database says Offline Cache, but the complete physical resource
                             // is gone. Remove only the automatic-cache marker; explicit downloads
                             // have their own source of truth and are never affected here.
+                            OfflineCacheRegistry.unprotect(id)
                             database.query {
                                 update(song.song.copy(isCached = false))
                             }
@@ -107,6 +109,7 @@ class CachePlaylistViewModel
                 // automatic Offline Cache control. They have their own download management path.
                 if (song.song.isDownloaded) return@launch
 
+                OfflineCacheRegistry.unprotect(songId)
                 playerCache.removeResource(songId)
                 database.query {
                     update(song.song.copy(isCached = false))
