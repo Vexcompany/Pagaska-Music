@@ -13,19 +13,10 @@ import com.metrolist.music.utils.SongCacheConfig
 import java.util.TreeSet
 
 /**
- * Least-recently-used [CacheEvictor] whose byte budget is read from [SongCacheConfig] on demand.
+ * Dynamic LRU evictor for the streaming/player cache.
  *
- * Media3's own `LeastRecentlyUsedCacheEvictor` is `final` and takes an immutable `maxBytes`, which
- * is why the "max song cache size" slider used to have no effect until the process died: the
- * singleton `SimpleCache` kept the evictor that was built with whatever value happened to be stored
- * when the cache was first touched. This implementation keeps the exact same LRU ordering but asks
- * for the current limit on every eviction pass, so the slider applies immediately.
- *
- * Two extra safety properties compared to the stock evictor:
- *  - `maxBytes == Long.MAX_VALUE` (unlimited) short-circuits before any arithmetic, so
- *    `currentSize + requiredSpace` can never overflow into a bogus eviction;
- *  - the eviction loop is bounded and self-heals if `Cache.removeSpan` does not notify us back
- *    (stale/replaced span), instead of spinning forever on the same span.
+ * Offline Cache entries are protected by [OfflineCacheRegistry] and are never selected as LRU
+ * eviction candidates. Temporary streaming spans remain normal LRU entries and are evicted first.
  */
 class DynamicLruCacheEvictor : CacheEvictor {
     private val leastRecentlyUsed =
@@ -38,10 +29,29 @@ class DynamicLruCacheEvictor : CacheEvictor {
         }
 
     private var currentSize: Long = 0L
+    private var indexInitialized = false
 
     override fun requiresCacheSpanTouches(): Boolean = true
 
-    override fun onCacheInitialized() = Unit
+    override fun onCacheInitialized() {
+        // Media3 does not pass the Cache instance to this callback. Existing spans are therefore
+        // indexed lazily on the first cache callback below, where the Cache reference is available.
+        indexInitialized = false
+    }
+
+    private fun ensureIndexInitialized(cache: Cache) {
+        if (indexInitialized) return
+        leastRecentlyUsed.clear()
+        currentSize = 0L
+        cache.keys.forEach { key ->
+            cache.getCachedSpans(key).forEach { span ->
+                leastRecentlyUsed.add(span)
+                currentSize += span.length
+            }
+        }
+        indexInitialized = true
+        evictCache(cache, 0L)
+    }
 
     override fun onStartFile(
         cache: Cache,
@@ -49,6 +59,7 @@ class DynamicLruCacheEvictor : CacheEvictor {
         position: Long,
         length: Long,
     ) {
+        ensureIndexInitialized(cache)
         if (length != C.LENGTH_UNSET.toLong()) {
             evictCache(cache, length)
         }
@@ -58,8 +69,10 @@ class DynamicLruCacheEvictor : CacheEvictor {
         cache: Cache,
         span: CacheSpan,
     ) {
-        leastRecentlyUsed.add(span)
-        currentSize += span.length
+        ensureIndexInitialized(cache)
+        if (leastRecentlyUsed.add(span)) {
+            currentSize += span.length
+        }
         evictCache(cache, 0L)
     }
 
@@ -67,8 +80,16 @@ class DynamicLruCacheEvictor : CacheEvictor {
         cache: Cache,
         span: CacheSpan,
     ) {
+        ensureIndexInitialized(cache)
         if (leastRecentlyUsed.remove(span)) {
             currentSize = (currentSize - span.length).coerceAtLeast(0L)
+        }
+
+        // A manual cache clear or a genuine resource removal can remove the final span of an
+        // Offline Cache entry. Do not leave a stale protected id behind, otherwise future LRU
+        // decisions would treat a non-existent resource as protected.
+        if (OfflineCacheRegistry.isProtected(span.key) && cache.getCachedSpans(span.key).isEmpty()) {
+            OfflineCacheRegistry.unprotect(span.key)
         }
     }
 
@@ -77,8 +98,13 @@ class DynamicLruCacheEvictor : CacheEvictor {
         oldSpan: CacheSpan,
         newSpan: CacheSpan,
     ) {
+        ensureIndexInitialized(cache)
         onSpanRemoved(cache, oldSpan)
         onSpanAdded(cache, newSpan)
+
+        // Touches represent actual access to an existing cache span. OfflineCacheManager handles
+        // the asynchronous full-resource check so this callback stays non-blocking.
+        OfflineCacheRegistry.notifyCacheActivity(newSpan)
     }
 
     private fun evictCache(
@@ -88,13 +114,15 @@ class DynamicLruCacheEvictor : CacheEvictor {
         val maxBytes = SongCacheConfig.maxBytes
         if (maxBytes == Long.MAX_VALUE) return
 
-        // Never loop more times than there are candidate spans to drop.
+        // Never loop more times than there are candidate spans to inspect.
         var budget = leastRecentlyUsed.size + 1
         while (currentSize + requiredSpace > maxBytes &&
             leastRecentlyUsed.isNotEmpty() &&
             budget-- > 0
         ) {
-            val span = leastRecentlyUsed.first()
+            val span = leastRecentlyUsed.firstOrNull { !OfflineCacheRegistry.isProtected(it.key) }
+                ?: return
+
             val sizeBefore = currentSize
             cache.removeSpan(span)
             if (currentSize == sizeBefore) {
