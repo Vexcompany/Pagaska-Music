@@ -32,6 +32,9 @@ object SongCacheConfig {
     @Volatile
     private var maxBytesValue: Long = UNSET
 
+    @Volatile
+    private var limitChangeListener: ((Long) -> Unit)? = null
+
     /** True until [update] (or [updateIfUnset]) has been called at least once. */
     val isUnset: Boolean
         get() = maxBytesValue == UNSET
@@ -52,11 +55,24 @@ object SongCacheConfig {
         }
 
     fun update(sizeInMb: Int) {
-        maxBytesValue = fromPreference(sizeInMb)
+        val newMaxBytes = fromPreference(sizeInMb)
+        val oldMaxBytes = maxBytesValue
+        maxBytesValue = newMaxBytes
+        if (oldMaxBytes != newMaxBytes) {
+            limitChangeListener?.invoke(newMaxBytes)
+        }
     }
 
     /** Seeds the budget once, from a blocking DataStore read, before the cache is first used. */
     fun updateIfUnset(sizeInMb: Int) {
         if (isUnset) update(sizeInMb)
+    }
+
+    /**
+     * Registers a lightweight listener for quota changes. The callback must not block; callers
+     * should dispatch any cache/database work to their own background scope.
+     */
+    fun setLimitChangeListener(listener: ((Long) -> Unit)?) {
+        limitChangeListener = listener
     }
 }
