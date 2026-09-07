@@ -6,10 +6,12 @@
 package com.metrolist.music.playback
 
 import androidx.media3.datasource.cache.Cache
+import androidx.media3.datasource.cache.CacheSpan
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.utils.SongCacheConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -22,9 +24,15 @@ import timber.log.Timber
 class OfflineCacheManager(
     private val database: MusicDatabase,
     private val playerCache: Cache,
-    applicationScope: CoroutineScope,
+    private val applicationScope: CoroutineScope,
 ) {
     init {
+        OfflineCacheRegistry.setCacheActivityListener { span ->
+            applicationScope.launch(Dispatchers.IO) {
+                promoteFromCacheActivity(span)
+            }
+        }
+
         // Rebuild the protected registry as soon as the singleton is created. This repairs stale
         // isCached flags left behind by crashes, manual cache wipes, or older builds before any
         // playback attempts to use the protected-cache path.
@@ -37,6 +45,13 @@ class OfflineCacheManager(
                 Timber.tag(TAG).w(error, "Offline Cache startup reconciliation failed")
             }
         }
+    }
+
+    private suspend fun promoteFromCacheActivity(span: CacheSpan) {
+        val mediaId = span.key
+        val contentLength = database.song(mediaId).firstOrNull()?.format?.contentLength ?: return
+        if (contentLength <= 0L || span.position + span.length < contentLength) return
+        promoteIfEligible(mediaId, contentLength)
     }
 
     suspend fun reconcile(contentLengthProvider: suspend (String) -> Long?) = withContext(Dispatchers.IO) {
