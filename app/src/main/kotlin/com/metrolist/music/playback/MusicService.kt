@@ -57,6 +57,7 @@ import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
@@ -3439,9 +3440,15 @@ class MusicService :
         private val directFactory: DataSource.Factory,
     ) : DataSource {
         private var active: DataSource? = null
+        private val transferListeners = mutableListOf<TransferListener>()
+
+        override fun addTransferListener(transferListener: TransferListener) {
+            transferListeners += transferListener
+        }
 
         override fun open(dataSpec: DataSpec): Long {
             val next = (if (songCacheEnabled) cachedFactory else directFactory).createDataSource()
+            transferListeners.forEach(next::addTransferListener)
             val previous = active
             active = next
             if (previous != null && previous !== next) {
