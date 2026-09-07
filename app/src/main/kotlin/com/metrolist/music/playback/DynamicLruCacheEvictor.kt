@@ -32,7 +32,24 @@ class DynamicLruCacheEvictor : CacheEvictor {
 
     override fun requiresCacheSpanTouches(): Boolean = true
 
-    override fun onCacheInitialized() = Unit
+    override fun onCacheInitialized(cache: Cache) {
+        // SimpleCache calls this after rebuilding its index from disk. The evictor must reconstruct
+        // its in-memory accounting here; otherwise a process restart resets currentSize to zero and
+        // the configured capacity can be exceeded by already-existing spans.
+        leastRecentlyUsed.clear()
+        currentSize = 0L
+        cache.keys.forEach { key ->
+            cache.getCachedSpans(key).forEach { span ->
+                leastRecentlyUsed.add(span)
+                currentSize += span.length
+            }
+        }
+
+        // If the persisted cache is already over the configured budget, reclaim temporary spans
+        // immediately. Offline protection is populated by OfflineCacheManager during startup and
+        // any protected spans are therefore skipped here as well when the registry is already warm.
+        evictCache(cache, 0L)
+    }
 
     override fun onStartFile(
         cache: Cache,
