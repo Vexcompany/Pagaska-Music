@@ -45,12 +45,13 @@ class CachePlaylistViewModel
                     val hideExplicit = context.dataStore.get(HideExplicitKey, false)
                     val hideVideoSongs = context.dataStore.get(HideVideoSongsKey, false)
 
-                    // The Cache Playlist is a view of the actual player cache, not a
-                    // historical download/date flag. A song is shown as cached only when
-                    // its complete media range is present in playerCache. Downloaded songs
-                    // are deliberately excluded: Downloaded and streaming Cached are two
-                    // separate library states even when both caches contain the same id.
-                    val candidateIds = playerCache.keys.toSet()
+                    // "Tersimpan di cache" is now the Offline Available view. Explicit downloads
+                    // remain physically stored in downloadCache, while automatic Offline Cache
+                    // entries live in playerCache. The UI combines both without duplicating bytes.
+                    val candidateIds =
+                        playerCache.keys.toMutableSet().apply {
+                            addAll(downloadCache.keys)
+                        }
                     val songs =
                         if (candidateIds.isNotEmpty()) {
                             database.getSongsByIds(candidateIds.toList())
@@ -58,24 +59,38 @@ class CachePlaylistViewModel
                             emptyList()
                         }
 
-                    val stillValid = mutableListOf<Song>()
+                    val offlineSongs = mutableListOf<Pair<Song, Long>>()
 
                     for (song in songs) {
-                        if (song.song.isDownloaded) continue
-
                         val contentLength = song.format?.contentLength ?: continue
-                        if (playerCache.isCached(song.song.id, 0, contentLength)) {
-                            stillValid += song
-                        } else if (song.song.dateDownload != null) {
-                            // Clean up the legacy marker when the LRU cache has evicted
-                            // the complete file. This keeps old database state harmless.
-                            database.query { update(song.song.copy(dateDownload = null, isCached = false)) }
+                        val id = song.song.id
+
+                        if (song.song.isDownloaded) {
+                            if (downloadCache.isCached(id, 0L, contentLength)) {
+                                // Explicit Download is already offline-ready. Do not touch the
+                                // automatic player-cache quota or copy the resource.
+                                val lastTouch =
+                                    downloadCache.getCachedSpans(id).maxOfOrNull { it.lastTouchTimestamp } ?: 0L
+                                offlineSongs += song to lastTouch
+                            }
+                        } else if (song.song.isCached && playerCache.isCached(id, 0L, contentLength)) {
+                            val lastTouch =
+                                playerCache.getCachedSpans(id).maxOfOrNull { it.lastTouchTimestamp } ?: 0L
+                            offlineSongs += song to lastTouch
+                        } else if (song.song.isCached) {
+                            // The database says Offline Cache, but the complete physical resource
+                            // is gone. Remove only the automatic-cache marker; explicit downloads
+                            // have their own source of truth and are never affected here.
+                            database.query {
+                                update(song.song.copy(isCached = false))
+                            }
                         }
                     }
 
                     _cachedSongs.value =
-                        stillValid
-                            .sortedByDescending { it.song.dateDownload }
+                        offlineSongs
+                            .sortedByDescending { it.second }
+                            .map { it.first }
                             .filterExplicit(hideExplicit)
                             .filterVideoSongs(hideVideoSongs)
 
@@ -85,13 +100,16 @@ class CachePlaylistViewModel
         }
 
         fun removeSongFromCache(songId: String) {
-            playerCache.removeResource(songId)
             viewModelScope.launch {
-                val song = database.getSongsByIds(listOf(songId)).firstOrNull()
-                if (song != null && !song.song.isDownloaded) {
-                    database.query {
-                        update(song.song.copy(dateDownload = null, isCached = false))
-                    }
+                val song = database.getSongsByIds(listOf(songId)).firstOrNull() ?: return@launch
+
+                // Explicit Downloads are authoritative and must not be deleted through the
+                // automatic Offline Cache control. They have their own download management path.
+                if (song.song.isDownloaded) return@launch
+
+                playerCache.removeResource(songId)
+                database.query {
+                    update(song.song.copy(isCached = false))
                 }
             }
         }
