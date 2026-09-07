@@ -94,6 +94,10 @@ class DynamicLruCacheEvictor : CacheEvictor {
         ensureIndexInitialized(cache)
         onSpanRemoved(cache, oldSpan)
         onSpanAdded(cache, newSpan)
+
+        // Touches represent actual access to an existing cache span. OfflineCacheManager handles
+        // the asynchronous full-resource check so this callback stays non-blocking.
+        OfflineCacheRegistry.notifyCacheActivity(newSpan)
     }
 
     private fun evictCache(
