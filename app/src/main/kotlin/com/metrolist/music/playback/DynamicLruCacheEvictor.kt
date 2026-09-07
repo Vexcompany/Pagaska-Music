@@ -29,13 +29,18 @@ class DynamicLruCacheEvictor : CacheEvictor {
         }
 
     private var currentSize: Long = 0L
+    private var indexInitialized = false
 
     override fun requiresCacheSpanTouches(): Boolean = true
 
-    override fun onCacheInitialized(cache: Cache) {
-        // SimpleCache calls this after rebuilding its index from disk. The evictor must reconstruct
-        // its in-memory accounting here; otherwise a process restart resets currentSize to zero and
-        // the configured capacity can be exceeded by already-existing spans.
+    override fun onCacheInitialized() {
+        // Media3 does not pass the Cache instance to this callback. Existing spans are therefore
+        // indexed lazily on the first cache callback below, where the Cache reference is available.
+        indexInitialized = false
+    }
+
+    private fun ensureIndexInitialized(cache: Cache) {
+        if (indexInitialized) return
         leastRecentlyUsed.clear()
         currentSize = 0L
         cache.keys.forEach { key ->
@@ -44,10 +49,7 @@ class DynamicLruCacheEvictor : CacheEvictor {
                 currentSize += span.length
             }
         }
-
-        // If the persisted cache is already over the configured budget, reclaim temporary spans
-        // immediately. Offline protection is populated by OfflineCacheManager during startup and
-        // any protected spans are therefore skipped here as well when the registry is already warm.
+        indexInitialized = true
         evictCache(cache, 0L)
     }
 
@@ -57,6 +59,7 @@ class DynamicLruCacheEvictor : CacheEvictor {
         position: Long,
         length: Long,
     ) {
+        ensureIndexInitialized(cache)
         if (length != C.LENGTH_UNSET.toLong()) {
             evictCache(cache, length)
         }
@@ -66,8 +69,10 @@ class DynamicLruCacheEvictor : CacheEvictor {
         cache: Cache,
         span: CacheSpan,
     ) {
-        leastRecentlyUsed.add(span)
-        currentSize += span.length
+        ensureIndexInitialized(cache)
+        if (leastRecentlyUsed.add(span)) {
+            currentSize += span.length
+        }
         evictCache(cache, 0L)
     }
 
@@ -75,6 +80,7 @@ class DynamicLruCacheEvictor : CacheEvictor {
         cache: Cache,
         span: CacheSpan,
     ) {
+        ensureIndexInitialized(cache)
         if (leastRecentlyUsed.remove(span)) {
             currentSize = (currentSize - span.length).coerceAtLeast(0L)
         }
@@ -85,6 +91,7 @@ class DynamicLruCacheEvictor : CacheEvictor {
         oldSpan: CacheSpan,
         newSpan: CacheSpan,
     ) {
+        ensureIndexInitialized(cache)
         onSpanRemoved(cache, oldSpan)
         onSpanAdded(cache, newSpan)
     }
