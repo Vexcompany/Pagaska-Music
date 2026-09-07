@@ -32,6 +32,14 @@ class OfflineCacheManager(
                 promoteFromCacheActivity(span)
             }
         }
+        SongCacheConfig.setLimitChangeListener {
+            applicationScope.launch(Dispatchers.IO) {
+                runCatching { enforceCapacity() }
+                    .onFailure { error ->
+                        Timber.tag(TAG).w(error, "Offline Cache capacity reconciliation failed")
+                    }
+            }
+        }
 
         // Rebuild the protected registry as soon as the singleton is created. This repairs stale
         // isCached flags left behind by crashes, manual cache wipes, or older builds before any
@@ -41,6 +49,7 @@ class OfflineCacheManager(
                 reconcile { mediaId ->
                     database.song(mediaId).firstOrNull()?.format?.contentLength
                 }
+                enforceCapacity()
             }.onFailure { error ->
                 Timber.tag(TAG).w(error, "Offline Cache startup reconciliation failed")
             }
@@ -107,6 +116,41 @@ class OfflineCacheManager(
         } catch (t: Throwable) {
             OfflineCacheRegistry.unprotect(mediaId)
             throw t
+        }
+    }
+
+    /**
+     * Drops the oldest automatic Offline Cache resources until protected bytes fit the configured
+     * quota. Explicit downloads are never considered. If the quota is disabled, all automatic
+     * Offline Cache resources are removed.
+     */
+    suspend fun enforceCapacity() = withContext(Dispatchers.IO) {
+        val maxBytes = SongCacheConfig.maxBytes
+        if (maxBytes == Long.MAX_VALUE) return@withContext
+
+        while (protectedCacheBytes() > maxBytes) {
+            val candidate = OfflineCacheRegistry.snapshot()
+                .mapNotNull { mediaId ->
+                    val spans = playerCache.getCachedSpans(mediaId)
+                    if (spans.isEmpty()) return@mapNotNull null
+                    val bytes = spans.sumOf { it.length }
+                    val lastTouched = spans.maxOf { it.lastTouchTimestamp }
+                    mediaId to (bytes to lastTouched)
+                }
+                .minWithOrNull(
+                    compareBy<Pair<String, Pair<Long, Long>>> { it.second.second }
+                        .thenByDescending { it.second.first },
+                )
+                ?.first
+                ?: break
+
+            Timber.tag(TAG).i("Removing automatic Offline Cache entry %s to satisfy capacity", candidate)
+            OfflineCacheRegistry.unprotect(candidate)
+            playerCache.removeResource(candidate)
+            database.openHelper.writableDatabase.execSQL(
+                "UPDATE song SET isCached = 0 WHERE id = ? AND isDownloaded = 0",
+                arrayOf(candidate),
+            )
         }
     }
 
