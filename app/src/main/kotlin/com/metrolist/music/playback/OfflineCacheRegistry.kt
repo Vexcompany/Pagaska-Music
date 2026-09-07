@@ -27,6 +27,8 @@ object OfflineCacheRegistry {
 
     fun isProtected(mediaId: String): Boolean = protectedMediaIds.contains(mediaId)
 
+    fun snapshot(): Set<String> = protectedMediaIds.toSet()
+
     fun replaceAll(mediaIds: Collection<String>) {
         protectedMediaIds.clear()
         protectedMediaIds.addAll(mediaIds)
