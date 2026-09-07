@@ -212,6 +212,11 @@ constructor(
                         scope.launch {
                             when (download.state) {
                                 Download.STATE_COMPLETED -> {
+                                    // An explicit download is the authoritative offline copy. If
+                                    // the same song had been promoted to playerCache Offline Cache,
+                                    // detach it first so the bytes are not duplicated and the
+                                    // automatic cache quota is not charged for a downloaded song.
+                                    offlineCacheManager.detachForExplicitDownload(download.request.id)
                                     database.updateDownloadedInfo(download.request.id, true, LocalDateTime.now())
                                 }
                                 Download.STATE_FAILED,
