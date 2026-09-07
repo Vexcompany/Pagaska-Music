@@ -206,8 +206,9 @@ object AppModule {
     fun provideOfflineCacheManager(
         database: MusicDatabase,
         @PlayerCache playerCache: Cache,
+        @ApplicationContext context: Context,
         @ApplicationScope applicationScope: CoroutineScope,
-    ): OfflineCacheManager = OfflineCacheManager(database, playerCache, applicationScope)
+    ): OfflineCacheManager = OfflineCacheManager(database, playerCache, context, applicationScope)
 
     @Singleton
     @Provides
