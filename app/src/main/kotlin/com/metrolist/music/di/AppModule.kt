@@ -20,6 +20,7 @@ import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.listentogether.ListenTogetherClient
 import com.metrolist.music.listentogether.ListenTogetherManager
 import com.metrolist.music.playback.DynamicLruCacheEvictor
+import com.metrolist.music.playback.OfflineCacheManager
 import com.metrolist.music.utils.SongCacheConfig
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
@@ -199,6 +200,13 @@ object AppModule {
                 databaseProvider,
             )
         }
+
+    @Singleton
+    @Provides
+    fun provideOfflineCacheManager(
+        database: MusicDatabase,
+        @PlayerCache playerCache: Cache,
+    ): OfflineCacheManager = OfflineCacheManager(database, playerCache)
 
     @Singleton
     @Provides
