@@ -110,6 +110,24 @@ class OfflineCacheManager(
         }
     }
 
+    /**
+     * Detaches a song from automatic Offline Cache when an explicit Download becomes authoritative.
+     * This prevents two physical copies of the same song from surviving in playerCache and
+     * downloadCache. The download itself remains untouched.
+     */
+    suspend fun detachForExplicitDownload(mediaId: String) = withContext(Dispatchers.IO) {
+        val shouldRemove = OfflineCacheRegistry.isProtected(mediaId) ||
+            database.songEntity(mediaId)?.isCached == true
+        if (!shouldRemove) return@withContext
+
+        OfflineCacheRegistry.unprotect(mediaId)
+        playerCache.removeResource(mediaId)
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE song SET isCached = 0 WHERE id = ?",
+            arrayOf(mediaId),
+        )
+    }
+
     suspend fun remove(mediaId: String) = withContext(Dispatchers.IO) {
         OfflineCacheRegistry.unprotect(mediaId)
         playerCache.removeResource(mediaId)
