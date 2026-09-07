@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="offline_cache_capacity_full">Penyimpanan offline sudah penuh. Lagu ini tetap dapat diputar, tetapi belum disimpan untuk didengarkan secara offline. Naikkan kapasitas penyimpanan offline atau kelola lagu yang tersimpan.</string>
+</resources>
