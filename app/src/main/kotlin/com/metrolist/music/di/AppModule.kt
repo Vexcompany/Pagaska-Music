@@ -21,6 +21,7 @@ import com.metrolist.music.listentogether.ListenTogetherClient
 import com.metrolist.music.listentogether.ListenTogetherManager
 import com.metrolist.music.playback.DynamicLruCacheEvictor
 import com.metrolist.music.playback.OfflineCacheManager
+import com.metrolist.music.playback.OfflineCacheRegistry
 import com.metrolist.music.utils.SongCacheConfig
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
@@ -39,6 +40,7 @@ import javax.inject.Singleton
 
 private class LazyCache(
     private val create: () -> SimpleCache,
+    private val protectResource: ((String) -> Boolean)? = null,
 ) : Cache {
     private val lock = Any()
 
@@ -110,7 +112,13 @@ private class LazyCache(
 
     override fun removeSpan(span: CacheSpan) = delegate().removeSpan(span)
 
-    override fun removeResource(key: String) = delegate().removeResource(key)
+    override fun removeResource(key: String) {
+        // Offline Cache is a protected layer on top of the same physical player cache. Generic
+        // cache clears and playback error recovery must not destroy an offline resource. Explicit
+        // removal goes through OfflineCacheManager, which unprotects the id before this call.
+        if (protectResource?.invoke(key) == true) return
+        delegate().removeResource(key)
+    }
 
     override fun isCached(
         key: String,
@@ -169,22 +177,25 @@ object AppModule {
         @ApplicationContext context: Context,
         databaseProvider: DatabaseProvider,
     ): Cache =
-        LazyCache {
-            // Seed the runtime byte budget once, before the first eviction can happen. Later
-            // changes are pushed by the DataStore collector in App.observeSettingsChanges(), so the
-            // evictor never has to block on I/O while SimpleCache's monitor is held.
-            SongCacheConfig.updateIfUnset(
-                context.dataStore[MaxSongCacheSizeKey] ?: SongCacheConfig.DEFAULT_MB,
-            )
-            SimpleCache(
-                context.filesDir.resolve("exoplayer"),
-                // Dynamic on purpose: LeastRecentlyUsedCacheEvictor takes an immutable maxBytes and
-                // this Cache is a singleton, so the "max song cache size" slider would otherwise
-                // only apply after the process is killed.
-                DynamicLruCacheEvictor(),
-                databaseProvider,
-            )
-        }
+        LazyCache(
+            create = {
+                // Seed the runtime byte budget once, before the first eviction can happen. Later
+                // changes are pushed by the DataStore collector in App.observeSettingsChanges(), so the
+                // evictor never has to block on I/O while SimpleCache's monitor is held.
+                SongCacheConfig.updateIfUnset(
+                    context.dataStore[MaxSongCacheSizeKey] ?: SongCacheConfig.DEFAULT_MB,
+                )
+                SimpleCache(
+                    context.filesDir.resolve("exoplayer"),
+                    // Dynamic on purpose: LeastRecentlyUsedCacheEvictor takes an immutable maxBytes and
+                    // this Cache is a singleton, so the "max song cache size" slider would otherwise
+                    // only apply after the process is killed.
+                    DynamicLruCacheEvictor(),
+                    databaseProvider,
+                )
+            },
+            protectResource = OfflineCacheRegistry::isProtected,
+        )
 
     @Singleton
     @Provides
