@@ -49,7 +49,7 @@ class DynamicLruCacheEvictor : CacheEvictor {
         position: Long,
         length: Long,
     ) {
-        if (length != C.LENGTH_UNSET) {
+        if (length != C.LENGTH_UNSET.toLong()) {
             evictCache(cache, length)
         }
     }
