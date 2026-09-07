@@ -84,6 +84,13 @@ class DynamicLruCacheEvictor : CacheEvictor {
         if (leastRecentlyUsed.remove(span)) {
             currentSize = (currentSize - span.length).coerceAtLeast(0L)
         }
+
+        // A manual cache clear or a genuine resource removal can remove the final span of an
+        // Offline Cache entry. Do not leave a stale protected id behind, otherwise future LRU
+        // decisions would treat a non-existent resource as protected.
+        if (OfflineCacheRegistry.isProtected(span.key) && cache.getCachedSpans(span.key).isEmpty()) {
+            OfflineCacheRegistry.unprotect(span.key)
+        }
     }
 
     override fun onSpanTouched(
