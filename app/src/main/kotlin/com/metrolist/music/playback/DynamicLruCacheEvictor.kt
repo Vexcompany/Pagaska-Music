@@ -13,19 +13,10 @@ import com.metrolist.music.utils.SongCacheConfig
 import java.util.TreeSet
 
 /**
- * Least-recently-used [CacheEvictor] whose byte budget is read from [SongCacheConfig] on demand.
+ * Dynamic LRU evictor for the streaming/player cache.
  *
- * Media3's own `LeastRecentlyUsedCacheEvictor` is `final` and takes an immutable `maxBytes`, which
- * is why the "max song cache size" slider used to have no effect until the process died: the
- * singleton `SimpleCache` kept the evictor that was built with whatever value happened to be stored
- * when the cache was first touched. This implementation keeps the exact same LRU ordering but asks
- * for the current limit on every eviction pass, so the slider applies immediately.
- *
- * Two extra safety properties compared to the stock evictor:
- *  - `maxBytes == Long.MAX_VALUE` (unlimited) short-circuits before any arithmetic, so
- *    `currentSize + requiredSpace` can never overflow into a bogus eviction;
- *  - the eviction loop is bounded and self-heals if `Cache.removeSpan` does not notify us back
- *    (stale/replaced span), instead of spinning forever on the same span.
+ * Offline Cache entries are protected by [OfflineCacheRegistry] and are never selected as LRU
+ * eviction candidates. Temporary streaming spans remain normal LRU entries and are evicted first.
  */
 class DynamicLruCacheEvictor : CacheEvictor {
     private val leastRecentlyUsed =
@@ -88,13 +79,15 @@ class DynamicLruCacheEvictor : CacheEvictor {
         val maxBytes = SongCacheConfig.maxBytes
         if (maxBytes == Long.MAX_VALUE) return
 
-        // Never loop more times than there are candidate spans to drop.
+        // Never loop more times than there are candidate spans to inspect.
         var budget = leastRecentlyUsed.size + 1
         while (currentSize + requiredSpace > maxBytes &&
             leastRecentlyUsed.isNotEmpty() &&
             budget-- > 0
         ) {
-            val span = leastRecentlyUsed.first()
+            val span = leastRecentlyUsed.firstOrNull { !OfflineCacheRegistry.isProtected(it.key) }
+                ?: return
+
             val sizeBefore = currentSize
             cache.removeSpan(span)
             if (currentSize == sizeBefore) {
