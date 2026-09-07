@@ -5,6 +5,7 @@
 
 package com.metrolist.music.playback
 
+import androidx.media3.datasource.cache.CacheSpan
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -16,6 +17,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object OfflineCacheRegistry {
     private val protectedMediaIds = ConcurrentHashMap.newKeySet<String>()
+
+    @Volatile
+    private var cacheActivityListener: ((CacheSpan) -> Unit)? = null
 
     fun protect(mediaId: String) {
         protectedMediaIds.add(mediaId)
@@ -34,7 +38,22 @@ object OfflineCacheRegistry {
         protectedMediaIds.addAll(mediaIds)
     }
 
+    /**
+     * Registers a lightweight callback used by the cache evictor to report cache activity.
+     * The callback must not perform blocking work because it may run while SimpleCache holds its
+     * internal lock. OfflineCacheManager dispatches the actual reconciliation to its application
+     * scope.
+     */
+    fun setCacheActivityListener(listener: ((CacheSpan) -> Unit)?) {
+        cacheActivityListener = listener
+    }
+
+    fun notifyCacheActivity(span: CacheSpan) {
+        cacheActivityListener?.invoke(span)
+    }
+
     fun clear() {
         protectedMediaIds.clear()
+        cacheActivityListener = null
     }
 }
