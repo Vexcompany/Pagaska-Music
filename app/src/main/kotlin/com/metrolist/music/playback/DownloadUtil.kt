@@ -57,6 +57,9 @@ constructor(
     val databaseProvider: DatabaseProvider,
     @DownloadCache val downloadCache: Cache,
     @PlayerCache val playerCache: Cache,
+    // DownloadUtil is created by the playback/download graph, so keeping this dependency here
+    // guarantees OfflineCacheManager is instantiated and its startup reconciliation is attached.
+    private val offlineCacheManager: OfflineCacheManager,
 ) {
     private val TAG = "DownloadUtil"
     private val connectivityManager = context.getSystemService<ConnectivityManager>()!!
