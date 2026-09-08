@@ -74,6 +74,11 @@ class DynamicLruCacheEvictor : CacheEvictor {
             currentSize += span.length
         }
         evictCache(cache, 0L)
+
+        // A completed cache span can be created without a subsequent touch callback. Notify the
+        // Offline Cache manager here as well, so the final span of a fully cached song can be
+        // promoted immediately instead of remaining an ordinary temporary streaming cache.
+        OfflineCacheRegistry.notifyCacheActivity(span)
     }
 
     override fun onSpanRemoved(
