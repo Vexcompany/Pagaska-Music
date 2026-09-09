@@ -1,0 +1,72 @@
+name: Apply cache read-only toggle fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, 'chore: apply cache read-only toggle fix')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch MusicService
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt')
+          text = path.read_text()
+
+          old = '''        val switchingFactory =
+            DataSource.Factory {
+                CacheSwitchDataSource(playerCacheFactory, upstreamFactory)
+            }
+'''
+
+          new = '''        // The cache switch controls only writes. Even when disabled, the player cache remains
+        // readable so existing streaming cache and protected Offline Cache stay usable.
+        val playerCacheReadOnlyFactory =
+            CacheDataSource
+                .Factory()
+                .setCache(playerCache)
+                .setUpstreamDataSourceFactory(upstreamFactory)
+                .setCacheWriteDataSinkFactory(null)
+                .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+
+        val switchingFactory =
+            DataSource.Factory {
+                CacheSwitchDataSource(playerCacheFactory, playerCacheReadOnlyFactory)
+            }
+'''
+
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one switchingFactory block, found {text.count(old)}')
+
+          text = text.replace(old, new)
+          text = text.replace(
+              'turning the song cache off stops both writes *and*\n     * reads of `files/exoplayer` from the next chunk onwards, and turning it back on resumes\n     * caching immediately — no player rebuild, no restart, no interruption.',
+              'turning the song cache off stops writes to `files/exoplayer` while keeping existing\n     * cached data readable from the next chunk onwards. Turning it back on resumes writes\n     * immediately — no player rebuild, no restart, no interruption.'
+          )
+          text = text.replace(
+              '     * Doing the choice per `open()` (instead of once, at construction) is the whole point: the\n     * switch then applies to the next chunk read, without recreating the player or the media source\n     * factory.',
+              '     * Doing the choice per `open()` (instead of once, at construction) is the whole point: the\n     * switch then applies the write policy to the next chunk without recreating the player or media\n     * source factory. Existing cache reads remain enabled in both modes.'
+          )
+          path.write_text(text)
+
+      - name: Commit source fix and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/_apply_cache_read_only_fix.yml
+          git add app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt
+          git commit -m "fix(playback): keep cached songs readable when cache is off"
+          git push
