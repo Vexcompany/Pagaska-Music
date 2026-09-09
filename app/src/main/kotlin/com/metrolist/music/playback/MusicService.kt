@@ -3407,16 +3407,17 @@ class MusicService :
                 ),
             )
 
-        val playerCacheFactory =
+        val playerCacheReadOnlyFactory =
             CacheDataSource
                 .Factory()
                 .setCache(playerCache)
                 .setUpstreamDataSourceFactory(upstreamFactory)
+                .setCacheWriteDataSinkFactory(null)
                 .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
 
         val switchingFactory =
             DataSource.Factory {
-                CacheSwitchDataSource(playerCacheFactory, upstreamFactory)
+                CacheSwitchDataSource(playerCacheFactory, playerCacheReadOnlyFactory)
             }
 
         return CacheDataSource
