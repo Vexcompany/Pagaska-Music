@@ -2945,6 +2945,16 @@ class MusicService :
     private fun isRemotePlaybackError(error: PlaybackException): Boolean =
         error.errorCode == PlaybackException.ERROR_CODE_REMOTE_ERROR
 
+    /**
+     * Media3 uses 2000 (IO_UNSPECIFIED) for source failures where the useful cause is
+     * nested underneath ExoPlaybackException/Loader. These failures are often recoverable
+     * stream-resolution or CDN failures, so treat them like other refreshable playback I/O
+     * errors instead of immediately stopping the song.
+     */
+    private fun isUnspecifiedPlaybackIOError(error: PlaybackException): Boolean =
+        error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+            (error.cause as? PlaybackException)?.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+
     override fun onPlayerError(error: PlaybackException) {
         super.onPlayerError(error)
 
@@ -3004,6 +3014,12 @@ class MusicService :
             isRemotePlaybackError(error) -> {
                 Timber.tag(TAG).d("Remote playback error detected (${error.errorCode}), refreshing stream URL")
                 handleExpiredUrlError(mediaId)
+                return
+            }
+
+            isUnspecifiedPlaybackIOError(error) -> {
+                Timber.tag(TAG).d("Unspecified playback I/O error (2000), refreshing stream resolution")
+                handleGenericIOError(mediaId)
                 return
             }
 
