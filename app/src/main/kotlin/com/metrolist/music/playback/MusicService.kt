@@ -3423,6 +3423,13 @@ class MusicService :
                 ),
             )
 
+        val playerCacheFactory =
+            CacheDataSource
+                .Factory()
+                .setCache(playerCache)
+                .setUpstreamDataSourceFactory(upstreamFactory)
+                .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+
         val playerCacheReadOnlyFactory =
             CacheDataSource
                 .Factory()
