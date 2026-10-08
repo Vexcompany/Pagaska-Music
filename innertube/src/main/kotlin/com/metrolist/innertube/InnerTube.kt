@@ -13,6 +13,7 @@ import io.ktor.client.*
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.*
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.plugins.compression.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.HttpTimeout
@@ -188,9 +189,17 @@ class InnerTube {
             } catch (e: IOException) {
                 attempt++
                 if (attempt >= maxAttempts) throw e
-                delay(currentDelay)
-                currentDelay = (currentDelay * factor).toLong()
+            } catch (e: ClientRequestException) {
+                attempt++
+                if (attempt >= maxAttempts || !e.response.status.value.let { it == 408 || it == 429 || it >= 500 }) {
+                    throw e
+                }
+            } catch (e: ServerResponseException) {
+                attempt++
+                if (attempt >= maxAttempts) throw e
             }
+            delay(currentDelay)
+            currentDelay = (currentDelay * factor).toLong().coerceAtMost(4000L)
         }
     }
 
