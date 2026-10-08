@@ -176,7 +176,7 @@ constructor(
             }
 
             val streamUrl = playbackData.streamUrl.let {
-                "${it}&range=0-${actualContentLength}"
+                "${it}&range=0-${actualContentLength - 1}"
             }
 
             songUrlCache[mediaId] = streamUrl to playbackData.streamExpiresInSeconds * 1000L
