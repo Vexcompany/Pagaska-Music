@@ -3789,6 +3789,9 @@ class MusicService :
                 val contentLength =
                     runBlocking(Dispatchers.IO) {
                         database.song(mediaId).first()?.format?.contentLength
+                            ?: androidx.media3.datasource.cache.ContentMetadata
+                                .getContentLength(downloadCache.getContentMetadata(mediaId))
+                                .takeIf { it > 0L }
                     }
                 val requiredLength =
                     when {
