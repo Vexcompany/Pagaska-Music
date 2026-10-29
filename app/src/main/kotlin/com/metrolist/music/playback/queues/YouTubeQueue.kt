@@ -27,13 +27,10 @@ class YouTubeQueue(
         return withContext(IO) {
             var lastException: Throwable? = null
 
-            if (endpoint.videoId != null && endpoint.playlistId == null) {
-                endpoint = WatchEndpoint(
-                    videoId = endpoint.videoId,
-                    playlistId = "RDAMVM${endpoint.videoId}"
-                )
-            }
-
+            // Keep a plain videoId endpoint plain. Callers such as startRadioSeamlessly()
+            // intentionally use it to request YouTube's normal, personalized next/related queue.
+            // Forcing every videoId into RDAMVM changes that request into a Music Mix and can
+            // produce a noticeably different (and sometimes less relevant) audio-only queue.
             val isRadioRequest =
                 endpoint.playlistId?.startsWith("RDAMVM") == true ||
                 (endpoint.videoId != null && endpoint.playlistId == null)
