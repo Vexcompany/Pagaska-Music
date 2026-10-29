@@ -3,6 +3,12 @@ name: Build APKs
 # APK builds are intentionally manual. Normal pushes should not consume Actions minutes.
 on:
   workflow_dispatch:
+  # Run a release APK build once when this workflow is changed and merged.
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build.yml
 
 permissions:
   contents: write
