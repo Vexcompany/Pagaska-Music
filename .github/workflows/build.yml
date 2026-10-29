@@ -126,8 +126,4 @@ jobs:
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.variant == 'gms' && 'Pagaska-Music-debug-gms' || 'Pagaska-Music-debug' }}
-          path: app/build/outputs/apk/${{ matrix.variant }}/debug/*.apk
+      # Debug APKs are built and linted for validation, but intentionally not uploaded as artifacts.
