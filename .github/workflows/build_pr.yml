@@ -67,8 +67,4 @@ jobs:
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v6
-        with:
-          name: Pagaska-Music-debug-pr-${{ github.event.number }}
-          path: app/build/outputs/apk/foss/debug/*.apk
+      # PR debug APKs are built and linted for validation, but intentionally not uploaded as artifacts.
