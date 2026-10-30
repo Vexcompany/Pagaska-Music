@@ -34,7 +34,13 @@ class YouTubeQueue(
 
             // Keep a plain videoId endpoint plain. Radio callers use YouTube's normal,
             // personalized next/related queue instead of switching to an RDAMVM Music Mix.
-            if (continuation == null) loadedRadioIds.clear()
+            if (continuation == null) {
+                loadedRadioIds.clear()
+                if (isRadioRequest) {
+                    endpoint.videoId?.let(loadedRadioIds::add)
+                    preloadItem?.id?.let(loadedRadioIds::add)
+                }
+            }
 
             for (attempt in 0..maxRetries) {
                 try {
