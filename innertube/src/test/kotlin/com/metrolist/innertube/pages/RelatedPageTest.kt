@@ -2,6 +2,7 @@ package com.metrolist.innertube.pages
 
 import com.metrolist.innertube.models.Artist
 import com.metrolist.innertube.models.MusicResponsiveListItemRenderer
+import com.metrolist.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_ATV
 import com.metrolist.innertube.models.SongItem
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -42,6 +43,7 @@ class RelatedPageTest {
         assertNotNull(song)
         assertEquals("song-id", song?.id)
         assertEquals(listOf(Artist("Artist", "UCartist")), song?.artists)
+        assertEquals(MUSIC_VIDEO_TYPE_ATV, song?.musicVideoType)
         assertNull(song?.album)
     }
 }
