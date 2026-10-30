@@ -23,6 +23,8 @@ kotlin {
 }
 
 dependencies {
+    // Keep the existing Pagaska extractor while migrating callers incrementally.
+    api(libs.innertubex)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
