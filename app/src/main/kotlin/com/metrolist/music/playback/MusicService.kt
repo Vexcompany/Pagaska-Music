@@ -1883,10 +1883,7 @@ class MusicService :
             // Use simple videoId to let YouTube personalize recommendations
             val radioQueue =
                 YouTubeQueue(
-                    endpoint =
-                        WatchEndpoint(
-                            videoId = currentMediaId,
-                        ),
+                    endpoint = YouTubeQueue.radioEndpoint(currentMediaId),
                 )
 
             try {
