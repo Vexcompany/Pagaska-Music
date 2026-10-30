@@ -30,7 +30,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run FOSS Release unit tests
-        run: ./gradlew --console=plain testFossReleaseUnitTest --warning-mode summary
+        run: ./gradlew --console=plain :app:testFossReleaseUnitTest --warning-mode summary
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           PAGASKA_APPLICATION_ID: com.metrolist.music.pr.p${{ github.event.number }}
