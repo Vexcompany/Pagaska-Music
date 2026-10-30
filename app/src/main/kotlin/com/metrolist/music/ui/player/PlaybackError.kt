@@ -31,43 +31,61 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.PlaybackException
 import com.metrolist.music.R
+import java.util.Collections
+import java.util.IdentityHashMap
 
 @Composable
 fun PlaybackError(
     error: PlaybackException,
     retry: () -> Unit,
 ) {
-    // Build detailed error info for debugging
-    val rawErrorMessage = error.cause?.cause?.message 
-        ?: error.cause?.message 
-        ?: error.message 
-        ?: stringResource(R.string.error_unknown)
-    
-    // Check if this is an age-restricted content error
-    // Age-restricted content typically returns 403 Forbidden or contains age-related messages
-    val isAgeRestricted = rawErrorMessage.contains("age", ignoreCase = true) ||
-            rawErrorMessage.contains("Sign in to confirm your age", ignoreCase = true) ||
-            rawErrorMessage.contains("LOGIN_REQUIRED", ignoreCase = true) ||
-            rawErrorMessage.contains("confirm your age", ignoreCase = true) ||
-            rawErrorMessage.contains("403", ignoreCase = true) ||
-            rawErrorMessage.contains("Response code: 403", ignoreCase = true) ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-
-    // Check if this is a "job cancelled" error from YouTube
-    // YouTube returns this when the playback job cannot be started (often transient)
-    val isJobCancelled = rawErrorMessage.contains("job", ignoreCase = true) &&
-            (rawErrorMessage.contains("cancelled", ignoreCase = true) ||
-                    rawErrorMessage.contains("canceled", ignoreCase = true) ||
-                    rawErrorMessage.contains("cancellat", ignoreCase = true))
-    
-    val errorMessage = if (isAgeRestricted) {
-        "This app does not support playing age-restricted songs. We are working on fixing this issue."
-    } else if (isJobCancelled) {
-        stringResource(R.string.error_job_cancelled)
-    } else {
-        rawErrorMessage
+    // Media3 and its loaders can wrap the useful provider/HTTP exception several levels deep.
+    // Walk the complete bounded cause chain instead of assuming the root cause is exactly
+    // error.cause or error.cause.cause.
+    val causes = remember(error) { error.causeChain() }
+    val rawErrorMessages = remember(causes) {
+        causes.mapNotNull { it.message?.takeIf(String::isNotBlank) }.distinct()
     }
-    
+    val rawErrorMessage = rawErrorMessages.firstOrNull()
+        ?: stringResource(R.string.error_unknown)
+
+    // A generic HTTP 403 / IO_BAD_HTTP_STATUS is not proof of age restriction.
+    // Only show age guidance when the provider gives an explicit age-related reason.
+    val isAgeRestricted = rawErrorMessages.any { message ->
+        message.contains("age-restricted", ignoreCase = true) ||
+            message.contains("confirm your age", ignoreCase = true) ||
+            message.contains("age verification", ignoreCase = true) ||
+            message.contains("AGE_CHECK_REQUIRED", ignoreCase = true) ||
+            message.contains("AGE_VERIFICATION_REQUIRED", ignoreCase = true)
+    }
+    val isLoginRequired = rawErrorMessages.any {
+        it.contains("LOGIN_REQUIRED", ignoreCase = true) ||
+            it.contains("please sign in", ignoreCase = true) ||
+            it.contains("sign in to", ignoreCase = true)
+    }
+
+    val isJobCancelled = rawErrorMessages.any { message ->
+        message.contains("job", ignoreCase = true) &&
+            (message.contains("cancelled", ignoreCase = true) ||
+                message.contains("canceled", ignoreCase = true) ||
+                message.contains("cancellat", ignoreCase = true))
+    }
+
+    val errorMessage = when {
+        isAgeRestricted ->
+            "This content requires age verification and cannot be played with the current account."
+        isLoginRequired ->
+            "The provider requires a signed-in session. Check the account session and try again."
+        isJobCancelled -> stringResource(R.string.error_job_cancelled)
+        else -> rawErrorMessage
+    }
+
+    val causeSummary = remember(causes) {
+        causes.drop(1).joinToString(" → ") { cause ->
+            cause.javaClass.simpleName.ifBlank { cause.javaClass.name }
+        }
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -118,8 +136,23 @@ fun PlaybackError(
             textAlign = TextAlign.Center
         )
         
+        if (causeSummary.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = causeSummary,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         // Retry button
         Button(
             onClick = retry,
@@ -180,4 +213,17 @@ private fun getErrorCodeName(errorCode: Int): String {
         PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED -> "DRM_LICENSE_EXPIRED"
         else -> "UNKNOWN_ERROR_$errorCode"
     }
+}
+
+
+/** Returns a cycle-safe, bounded chain starting with the original playback exception. */
+private fun Throwable.causeChain(maxDepth: Int = 8): List<Throwable> {
+    val seen = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
+    val result = ArrayList<Throwable>(maxDepth)
+    var current: Throwable? = this
+    while (current != null && result.size < maxDepth && seen.add(current)) {
+        result += current
+        current = current.cause
+    }
+    return result
 }
