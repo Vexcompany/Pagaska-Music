@@ -1,7 +1,9 @@
 package com.metrolist.innertube.pages
 
+import com.metrolist.innertube.models.Album
 import com.metrolist.innertube.models.Artist
 import com.metrolist.innertube.models.MusicResponsiveListItemRenderer
+import com.metrolist.innertube.models.MusicTwoRowItemRenderer
 import com.metrolist.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_ATV
 import com.metrolist.innertube.models.SongItem
 import kotlinx.serialization.json.Json
@@ -46,4 +48,52 @@ class RelatedPageTest {
         assertEquals(MUSIC_VIDEO_TYPE_ATV, song?.musicVideoType)
         assertNull(song?.album)
     }
+    @Test
+    fun related_two_row_song_preserves_artist_album_duration_and_audio_type() {
+        val renderer = json.decodeFromString<MusicTwoRowItemRenderer>(
+            """
+            {
+              "title":{"runs":[{"text":"Two-row song","navigationEndpoint":null}]},
+              "subtitle":{"runs":[
+                {"text":"Artist","navigationEndpoint":{"browseEndpoint":{"browseId":"UCartist"}}},
+                {"text":" • ","navigationEndpoint":null},
+                {"text":"Album","navigationEndpoint":{"browseEndpoint":{
+                  "browseId":"MPREb_album",
+                  "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}
+                }}},
+                {"text":" • ","navigationEndpoint":null},
+                {"text":"3:42","navigationEndpoint":null}
+              ]},
+              "subtitleBadges":null,
+              "menu":null,
+              "thumbnailRenderer":{
+                "musicThumbnailRenderer":{
+                  "thumbnail":{"thumbnails":[{"url":"https://example.com/cover.jpg","width":100,"height":100}]},
+                  "thumbnailCrop":null,
+                  "thumbnailScale":null
+                },
+                "musicAnimatedThumbnailRenderer":null,
+                "croppedSquareThumbnailRenderer":null
+              },
+              "navigationEndpoint":{"watchEndpoint":{
+                "videoId":"two-row-song",
+                "watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_ATV"}}
+              }},
+              "thumbnailOverlay":null
+            }
+            """.trimIndent(),
+        )
+
+        val song = RelatedPage.fromMusicTwoRowItemRenderer(renderer) as? SongItem
+
+        assertNotNull(song)
+        assertEquals("two-row-song", song?.id)
+        assertEquals(listOf(Artist(name = "Artist", id = "UCartist")), song?.artists)
+        assertEquals(Album(name = "Album", id = "MPREb_album"), song?.album)
+        assertEquals(222, song?.duration)
+        assertEquals(MUSIC_VIDEO_TYPE_ATV, song?.musicVideoType)
+        assertEquals("https://example.com/cover.jpg", song?.thumbnail)
+        assertEquals("two-row-song", song?.endpoint?.videoId)
+    }
+
 }

@@ -69,6 +69,35 @@ data class RelatedPage(
 
         fun fromMusicTwoRowItemRenderer(renderer: MusicTwoRowItemRenderer): YTItem? {
             return when {
+                renderer.isSong -> {
+                    val endpoint = renderer.navigationEndpoint.anyWatchEndpoint
+                        ?.takeIf { it.videoId != null } ?: return null
+                    val libraryTokens = PageHelper.extractLibraryTokensFromMenuItems(
+                        renderer.menu?.menuRenderer?.items,
+                    )
+
+                    SongItem(
+                        id = endpoint.videoId ?: return null,
+                        title = renderer.title.runs?.firstOrNull()?.text ?: return null,
+                        artists = PageHelper.extractArtists(renderer.subtitle?.runs),
+                        album = renderer.subtitle?.runs.orEmpty().firstNotNullOfOrNull { run ->
+                            run.navigationEndpoint?.browseEndpoint
+                                ?.takeIf { it.isAlbumEndpoint }
+                                ?.let { Album(name = run.text, id = it.browseId) }
+                        },
+                        duration = PageHelper.extractDuration(renderer.subtitle?.runs),
+                        musicVideoType = renderer.musicVideoType,
+                        thumbnail = renderer.thumbnailRenderer.getThumbnailUrl() ?: return null,
+                        explicit = renderer.subtitleBadges?.any {
+                            it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE"
+                        } == true,
+                        endpoint = endpoint,
+                        setVideoId = endpoint.playlistSetVideoId,
+                        libraryAddToken = libraryTokens.addToken,
+                        libraryRemoveToken = libraryTokens.removeToken,
+                        isEpisode = renderer.isEpisode,
+                    )
+                }
                 renderer.isAlbum ->
                     AlbumItem(
                         browseId = renderer.navigationEndpoint.browseEndpoint?.browseId ?: return null,
