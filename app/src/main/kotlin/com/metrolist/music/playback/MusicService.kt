@@ -217,6 +217,8 @@ import com.metrolist.music.utils.SyncUtils
 import com.metrolist.music.utils.getArtistSeparator
 import com.metrolist.music.utils.joinToArtistString
 import com.metrolist.music.utils.YTPlayerUtils
+import com.metrolist.music.utils.isNetworkRelatedPlaybackError
+import com.metrolist.music.utils.isStreamClientPlaybackError
 import com.metrolist.music.utils.cipher.CipherDeobfuscator
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
@@ -2914,16 +2916,11 @@ class MusicService :
     }
 
     private fun isNetworkRelatedError(error: PlaybackException): Boolean {
-        // Don't treat specific errors as network errors - they need special handling
+        // Keep URL, cache-range, and YouTube page-reload failures on their dedicated recovery paths.
         if (isExpiredUrlError(error) || isRangeNotSatisfiableError(error) || isPageReloadError(error)) {
             return false
         }
-        return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
-            error.cause is java.net.ConnectException ||
-            error.cause is java.net.UnknownHostException ||
-            (error.cause as? PlaybackException)?.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+        return error.isNetworkRelatedPlaybackError()
     }
 
     /**
@@ -2954,32 +2951,7 @@ class MusicService :
         error.errorCode == PlaybackException.ERROR_CODE_REMOTE_ERROR
 
     private fun isStreamClientError(error: PlaybackException): Boolean =
-        error.causeChain()
-            .filterIsInstance<PlaybackException>()
-            .any { cause ->
-                cause.errorCode in setOf(
-                    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
-                    PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
-                    PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
-                    PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
-                    PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
-                    PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
-                    PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
-                )
-            }
-
-    private fun Throwable.causeChain(maxDepth: Int = 8): List<Throwable> {
-        val seen = java.util.Collections.newSetFromMap(
-            java.util.IdentityHashMap<Throwable, Boolean>(),
-        )
-        val result = ArrayList<Throwable>(maxDepth)
-        var current: Throwable? = this
-        while (current != null && result.size < maxDepth && seen.add(current)) {
-            result += current
-            current = current.cause
-        }
-        return result
-    }
+        error.isStreamClientPlaybackError()
 
     override fun onPlayerError(error: PlaybackException) {
         super.onPlayerError(error)
@@ -3044,14 +3016,6 @@ class MusicService :
                 return
             }
 
-            isStreamClientError(error) -> {
-                Timber.tag(TAG).d(
-                    "Stream-source failure detected; rotating client for $mediaId (client=${failedStreamClientId ?: "unknown"}, code=${error.errorCode})",
-                )
-                handleStreamClientError(mediaId, failedStreamClientId)
-                return
-            }
-
             !isNetworkConnected.value -> {
                 Timber.tag(TAG).d("No internet connection, waiting for connection")
                 waitOnNetworkError()
@@ -3061,6 +3025,14 @@ class MusicService :
             isNetworkRelatedError(error) -> {
                 Timber.tag(TAG).d("Network-related error detected while connected, attempting recovery")
                 handleGenericIOError(mediaId)
+                return
+            }
+
+            isStreamClientError(error) -> {
+                Timber.tag(TAG).d(
+                    "Stream-source failure detected; rotating client for $mediaId (client=${failedStreamClientId ?: "unknown"}, code=${error.errorCode}),
+                )
+                handleStreamClientError(mediaId, failedStreamClientId)
                 return
             }
         }
