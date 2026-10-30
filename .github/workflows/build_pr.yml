@@ -29,8 +29,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Inspect available unit test tasks
-        run: ./gradlew --console=plain :app:tasks --all | grep -iE "test|unit" || true
+      - name: Run FOSS JVM unit tests (no APK)
+        run: ./gradlew --console=plain :app:testFossDebugUnitTest --warning-mode summary
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PAGASKA_APPLICATION_ID: com.metrolist.music.pr.p${{ github.event.number }}
+          PAGASKA_APP_NAME: Pagaska Music PR ${{ github.event.number }}
+          PULL_REQUEST: "true"
 
       - name: Build and Lint FOSS Release APK
         run: ./gradlew --console=plain assembleFossRelease :app:lintFossRelease --warning-mode summary
