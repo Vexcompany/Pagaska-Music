@@ -56,7 +56,10 @@ object YTPlayerUtils {
         nowMs: Long = System.currentTimeMillis(),
     ) {
         streamClientFailures.compute(videoId) { _, failures ->
-            FailedStreamClients(failures?.clientIds.orEmpty() + streamClientId, nowMs)
+            val active = failures?.takeIf {
+                nowMs - it.failedAtMs in 0 until STREAM_CLIENT_FAILURE_TTL_MS
+            }
+            FailedStreamClients(active?.clientIds.orEmpty() + streamClientId, nowMs)
         }
     }
 
