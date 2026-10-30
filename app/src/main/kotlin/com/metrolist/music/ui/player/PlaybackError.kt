@@ -57,7 +57,8 @@ fun PlaybackError(
             message.contains("confirm your age", ignoreCase = true) ||
             message.contains("age verification", ignoreCase = true) ||
             message.contains("AGE_CHECK_REQUIRED", ignoreCase = true) ||
-            message.contains("AGE_VERIFICATION_REQUIRED", ignoreCase = true)
+            message.contains("AGE_VERIFICATION_REQUIRED", ignoreCase = true) ||
+            message.contains("CONTENT_CHECK_REQUIRED", ignoreCase = true)
     }
     val isLoginRequired = rawErrorMessages.any {
         it.contains("LOGIN_REQUIRED", ignoreCase = true) ||
