@@ -11,8 +11,7 @@ internal fun PlayerResponse.PlayabilityStatus?.isAgeRestrictedForPlayback(): Boo
     return when (playabilityStatus.status) {
         "AGE_CHECK_REQUIRED",
         "AGE_VERIFICATION_REQUIRED",
-        "CONTENT_CHECK_REQUIRED",
-        -> true
+        "CONTENT_CHECK_REQUIRED" -> true
 
         "LOGIN_REQUIRED" -> (playabilityStatus.desktopLegacyAgeGateReason ?: 0) > 0
         else -> false
