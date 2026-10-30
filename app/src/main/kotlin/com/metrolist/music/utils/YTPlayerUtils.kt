@@ -168,7 +168,9 @@ object YTPlayerUtils {
 
         // Check if WEB_REMIX response indicates age-restricted
         val mainStatus = mainPlayerResponse?.playabilityStatus?.status
-        val isAgeRestrictedFromResponse = mainStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "LOGIN_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        // LOGIN_REQUIRED is a generic YouTube playability status, not proof of age restriction.
+        // Treating it as age-restricted incorrectly disables the normal signature timestamp and NewPipe URL path.
+        val isAgeRestrictedFromResponse = mainStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "CONTENT_CHECK_REQUIRED")
         val wasOriginallyAgeRestricted = isAgeRestrictedFromResponse
 
         var audioConfig = mainPlayerResponse?.playerConfig?.audioConfig
@@ -181,7 +183,7 @@ object YTPlayerUtils {
 
         // Check current status
         val currentStatus = mainPlayerResponse?.playabilityStatus?.status
-        val isAgeRestricted = currentStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "LOGIN_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        val isAgeRestricted = currentStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "CONTENT_CHECK_REQUIRED")
 
         if (isAgeRestricted) {
             Timber.tag(logTag).d("Content is still age-restricted (status: $currentStatus), will try fallback clients")
