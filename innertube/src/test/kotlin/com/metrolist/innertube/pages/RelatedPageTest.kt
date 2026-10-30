@@ -42,7 +42,7 @@ class RelatedPageTest {
 
         assertNotNull(song)
         assertEquals("song-id", song?.id)
-        assertEquals(listOf(Artist("Artist", "UCartist")), song?.artists)
+        assertEquals(listOf(Artist(name = "Artist", id = "UCartist")), song?.artists)
         assertEquals(MUSIC_VIDEO_TYPE_ATV, song?.musicVideoType)
         assertNull(song?.album)
     }
