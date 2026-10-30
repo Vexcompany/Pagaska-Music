@@ -22,6 +22,7 @@ data class PlayerResponse(
     data class PlayabilityStatus(
         val status: String,
         val reason: String?,
+        val desktopLegacyAgeGateReason: Int? = null,
     )
 
     @Serializable
