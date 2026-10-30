@@ -164,11 +164,10 @@ object YTPlayerUtils {
             println("[PLAYBACK_DEBUG] Adaptive formats count: ${mainPlayerResponse?.streamingData?.adaptiveFormats?.size ?: 0}")
         }
 
-        // Check if WEB_REMIX response indicates age-restricted
+        // LOGIN_REQUIRED can be either an account/token gate or a legacy age gate.
+        // Only the explicit desktopLegacyAgeGateReason signal should classify it as age-restricted.
         val mainStatus = mainPlayerResponse?.playabilityStatus?.status
-        // LOGIN_REQUIRED is a generic YouTube playability status, not proof of age restriction.
-        // Treating it as age-restricted incorrectly disables the normal signature timestamp and NewPipe URL path.
-        val isAgeRestrictedFromResponse = mainStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        val isAgeRestrictedFromResponse = mainPlayerResponse?.playabilityStatus.isAgeRestrictedForPlayback()
         val wasOriginallyAgeRestricted = isAgeRestrictedFromResponse
 
         var audioConfig = mainPlayerResponse?.playerConfig?.audioConfig
@@ -179,9 +178,9 @@ object YTPlayerUtils {
         var streamExpiresInSeconds: Int? = null
         var streamPlayerResponse: PlayerResponse? = null
 
-        // Check current status
+        // Keep the status for diagnostics while sharing the same explicit age-gate classification.
         val currentStatus = mainPlayerResponse?.playabilityStatus?.status
-        val isAgeRestricted = currentStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        val isAgeRestricted = mainPlayerResponse?.playabilityStatus.isAgeRestrictedForPlayback()
 
         if (isAgeRestricted) {
             Timber.tag(logTag).d("Content is still age-restricted (status: $currentStatus), will try fallback clients")
