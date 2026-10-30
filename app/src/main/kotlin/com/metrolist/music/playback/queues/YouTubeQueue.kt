@@ -107,7 +107,7 @@ class YouTubeQueue(
          * Keeping it as a plain videoId makes both entry points use the same
          * YouTube next/related recommendation source.
          */
-        internal fun radioEndpoint(videoId: String): WatchEndpoint =
+        fun radioEndpoint(videoId: String): WatchEndpoint =
             WatchEndpoint(videoId = videoId)
 
         fun radio(song: MediaMetadata): YouTubeQueue =
