@@ -68,10 +68,19 @@ data class RelatedPage(
         }
 
         fun fromMusicTwoRowItemRenderer(renderer: MusicTwoRowItemRenderer): YTItem? {
+            val songEndpoint =
+                renderer.navigationEndpoint.anyWatchEndpoint?.takeIf { it.videoId != null }
+                    ?: renderer.thumbnailOverlay
+                        ?.musicItemThumbnailOverlayRenderer
+                        ?.content
+                        ?.musicPlayButtonRenderer
+                        ?.playNavigationEndpoint
+                        ?.anyWatchEndpoint
+                        ?.takeIf { it.videoId != null }
+
             return when {
-                renderer.isSong -> {
-                    val endpoint = renderer.navigationEndpoint.anyWatchEndpoint
-                        ?.takeIf { it.videoId != null } ?: return null
+                songEndpoint != null -> {
+                    val endpoint = songEndpoint
                     val libraryTokens = PageHelper.extractLibraryTokensFromMenuItems(
                         renderer.menu?.menuRenderer?.items,
                     )

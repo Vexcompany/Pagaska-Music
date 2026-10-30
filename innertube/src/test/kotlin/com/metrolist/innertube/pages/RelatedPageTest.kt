@@ -48,6 +48,7 @@ class RelatedPageTest {
         assertEquals(MUSIC_VIDEO_TYPE_ATV, song?.musicVideoType)
         assertNull(song?.album)
     }
+
     @Test
     fun related_two_row_song_preserves_artist_album_duration_and_audio_type() {
         val renderer = json.decodeFromString<MusicTwoRowItemRenderer>(
@@ -75,11 +76,13 @@ class RelatedPageTest {
                 "musicAnimatedThumbnailRenderer":null,
                 "croppedSquareThumbnailRenderer":null
               },
-              "navigationEndpoint":{"watchEndpoint":{
-                "videoId":"two-row-song",
-                "watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_ATV"}}
-              }},
-              "thumbnailOverlay":null
+              "navigationEndpoint":{"browseEndpoint":{"browseId":"MPLAsong"}},
+              "thumbnailOverlay":{"musicItemThumbnailOverlayRenderer":{"content":{"musicPlayButtonRenderer":{
+                "playNavigationEndpoint":{"watchEndpoint":{
+                  "videoId":"two-row-song",
+                  "watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_ATV"}}
+                }}
+              }}}}
             }
             """.trimIndent(),
         )
@@ -95,5 +98,5 @@ class RelatedPageTest {
         assertEquals("https://example.com/cover.jpg", song?.thumbnail)
         assertEquals("two-row-song", song?.endpoint?.videoId)
     }
-
 }
+
