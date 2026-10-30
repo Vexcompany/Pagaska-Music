@@ -40,4 +40,14 @@ class PlayabilityStatusExtTest {
             )
         }
     }
+    @Test
+    fun `login required with an explicit age prompt is age restricted without the legacy code`() {
+        val status = PlayerResponse.PlayabilityStatus(
+            status = "LOGIN_REQUIRED",
+            reason = "Please sign in to confirm your age",
+        )
+
+        assertTrue(status.isAgeRestrictedForPlayback())
+    }
+
 }

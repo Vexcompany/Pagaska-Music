@@ -13,7 +13,12 @@ fun PlayerResponse.PlayabilityStatus?.isAgeRestrictedForPlayback(): Boolean {
         "AGE_VERIFICATION_REQUIRED",
         "CONTENT_CHECK_REQUIRED" -> true
 
-        "LOGIN_REQUIRED" -> (playabilityStatus.desktopLegacyAgeGateReason ?: 0) > 0
+        "LOGIN_REQUIRED" ->
+            (playabilityStatus.desktopLegacyAgeGateReason ?: 0) > 0 ||
+                playabilityStatus.reason?.let { reason ->
+                    reason.contains("confirm your age", ignoreCase = true) ||
+                        reason.contains("age verification", ignoreCase = true)
+                } == true
         else -> false
     }
 }
