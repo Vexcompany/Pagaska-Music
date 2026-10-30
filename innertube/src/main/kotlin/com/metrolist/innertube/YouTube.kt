@@ -3234,7 +3234,7 @@ object YouTube {
 
     suspend fun related(endpoint: BrowseEndpoint): Result<RelatedPage> =
         runCatching {
-            val response = innerTube.browse(WEB_REMIX, endpoint.browseId).body<BrowseResponse>()
+            val response = innerTube.browse(WEB_REMIX, endpoint.browseId, endpoint.params).body<BrowseResponse>()
             val songs = mutableListOf<SongItem>()
             val albums = mutableListOf<AlbumItem>()
             val artists = mutableListOf<ArtistItem>()
