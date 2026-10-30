@@ -4,6 +4,7 @@ import com.metrolist.innertube.models.SongItem
 import com.metrolist.music.models.MediaMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YouTubeQueueTest {
@@ -82,4 +83,13 @@ class YouTubeQueueTest {
         artists = listOf(MediaMetadata.Artist(id = null, name = "Artist")),
         duration = 180,
     )
+    @Test
+    fun radio_continuation_loader_skips_duplicate_only_pages_with_a_bound() {
+        assertTrue(shouldSkipEmptyRadioPage(emptyList(), hasNextPage = true, skippedPages = 0))
+        assertTrue(shouldSkipEmptyRadioPage(emptyList(), hasNextPage = true, skippedPages = 2))
+        assertFalse(shouldSkipEmptyRadioPage(emptyList(), hasNextPage = true, skippedPages = 3))
+        assertFalse(shouldSkipEmptyRadioPage(emptyList(), hasNextPage = false, skippedPages = 0))
+        assertFalse(shouldSkipEmptyRadioPage(listOf(song("new-song")), hasNextPage = true, skippedPages = 0))
+    }
+
 }

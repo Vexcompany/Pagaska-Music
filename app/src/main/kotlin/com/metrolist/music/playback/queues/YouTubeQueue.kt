@@ -115,25 +115,42 @@ class YouTubeQueue(
     override suspend fun nextPage(): List<MediaItem> {
         return withContext(IO) {
             var lastException: Throwable? = null
+            var skippedEmptyRadioPages = 0
 
             for (attempt in 0..maxRetries) {
                 try {
-                    val nextResult = YouTube.next(endpoint, continuation).getOrThrow()
-                    endpoint = nextResult.endpoint
-                    continuation = nextResult.continuation
-                    retryCount = 0
-                    val pageItems =
-                        if (isRadioRequest) {
-                            nextResult.items.onlyUnseenRadioItems(loadedRadioIds)
-                        } else {
-                            nextResult.items
+                    while (true) {
+                        val nextResult = YouTube.next(endpoint, continuation).getOrThrow()
+                        endpoint = nextResult.endpoint
+                        continuation = nextResult.continuation
+                        retryCount = 0
+                        val pageItems =
+                            if (isRadioRequest) {
+                                nextResult.items.onlyUnseenRadioItems(loadedRadioIds)
+                            } else {
+                                nextResult.items
+                            }
+
+                        if (
+                            isRadioRequest &&
+                            shouldSkipEmptyRadioPage(
+                                items = pageItems,
+                                hasNextPage = continuation != null,
+                                skippedPages = skippedEmptyRadioPages,
+                            )
+                        ) {
+                            skippedEmptyRadioPages++
+                            continue
                         }
-                    return@withContext pageItems.map { it.toMediaItem() }
+
+                        return@withContext pageItems.map { it.toMediaItem() }
+                    }
                 } catch (e: Exception) {
                     lastException = e
                     retryCount++
                     if (retryCount >= maxRetries) {
-                        continuation = null // Stop trying to load more
+                        continuation = null // Stop trying to load more; do not restart the initial page.
+                        break
                     }
                 }
             }
@@ -178,6 +195,17 @@ internal fun List<SongItem>.ensurePreloadItem(
     return (listOf(preload.toYTItem()) + this) to 0
 }
 
+
+
+/** Skip a bounded number of duplicate-only radio pages while continuation is still available. */
+internal fun shouldSkipEmptyRadioPage(
+    items: List<SongItem>,
+    hasNextPage: Boolean,
+    skippedPages: Int,
+): Boolean =
+    items.isEmpty() && hasNextPage && skippedPages < MAX_EMPTY_RADIO_PAGES_TO_SKIP
+
+private const val MAX_EMPTY_RADIO_PAGES_TO_SKIP = 3
 
 /** Keep only the first occurrence of each radio item across the loaded pages. */
 internal fun List<SongItem>.onlyUnseenRadioItems(seenIds: MutableSet<String>): List<SongItem> =
