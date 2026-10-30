@@ -8,8 +8,10 @@ package com.metrolist.music.playback.queues
 import androidx.media3.common.MediaItem
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.models.WatchEndpoint
+import com.metrolist.innertube.models.SongItem
 import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.models.MediaMetadata
+import com.metrolist.music.models.toYTItem
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 
@@ -55,13 +57,16 @@ class YouTubeQueue(
                         }
                     }
 
+                    val (queueItems, mediaItemIndex) =
+                        items.ensurePreloadItem(preloadItem, nextResult.currentIndex)
+
                     endpoint = nextResult.endpoint
                     continuation = nextResult.continuation
                     retryCount = 0
                     return@withContext Queue.Status(
                         title = nextResult.title,
-                        items = items.map { it.toMediaItem() },
-                        mediaItemIndex = nextResult.currentIndex ?: 0,
+                        items = queueItems.map { it.toMediaItem() },
+                        mediaItemIndex = mediaItemIndex,
                     )
                 } catch (e: Exception) {
                     lastException = e
@@ -119,4 +124,25 @@ class YouTubeQueue(
                 preloadItem = song,
             )
     }
+}
+
+
+/**
+ * Keep the preloaded song aligned with Queue.Status.mediaItemIndex.
+ *
+ * A next response may omit its selected-item marker. In that case, defaulting
+ * the index to zero would make MusicService skip the first recommendation as
+ * though it were the already-preloaded seed.
+ */
+internal fun List<SongItem>.ensurePreloadItem(
+    preloadItem: MediaMetadata?,
+    selectedIndex: Int?,
+): Pair<List<SongItem>, Int> {
+    if (selectedIndex != null) return this to selectedIndex
+
+    val preload = preloadItem ?: return this to 0
+    val existingIndex = indexOfFirst { it.id == preload.id }
+    if (existingIndex >= 0) return this to existingIndex
+
+    return (listOf(preload.toYTItem()) + this) to 0
 }
