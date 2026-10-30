@@ -13,11 +13,11 @@ class YTPlayerUtilsFailureTest {
 
     @Test
     fun failedClientsAccumulatePerVideoAndExpire() {
-        YTPlayerUtils.markStreamClientFailed("song-a", "WEB_REMIX", nowMs = 1_000L)
-        YTPlayerUtils.markStreamClientFailed("song-a", "TVHTML5", nowMs = 2_000L)
+        YTPlayerUtils.markStreamClientFailed("song-a", "WEB_REMIX@1.2026", nowMs = 1_000L)
+        YTPlayerUtils.markStreamClientFailed("song-a", "TVHTML5@7.2026", nowMs = 2_000L)
 
         assertEquals(
-            setOf("WEB_REMIX", "TVHTML5"),
+            setOf("WEB_REMIX@1.2026", "TVHTML5@7.2026"),
             YTPlayerUtils.failedStreamClients("song-a", nowMs = 2_000L),
         )
         assertTrue(YTPlayerUtils.failedStreamClients("song-b", nowMs = 2_000L).isEmpty())
@@ -26,7 +26,7 @@ class YTPlayerUtilsFailureTest {
 
     @Test
     fun cipherRecoveryClearsFailedClientState() {
-        YTPlayerUtils.markStreamClientFailed("song-a", "WEB_REMIX", nowMs = 1_000L)
+        YTPlayerUtils.markStreamClientFailed("song-a", "WEB_REMIX@1.2026", nowMs = 1_000L)
 
         YTPlayerUtils.clearStreamClientFailures()
 
