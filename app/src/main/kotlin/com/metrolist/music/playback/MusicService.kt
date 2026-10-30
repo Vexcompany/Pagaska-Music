@@ -3874,6 +3874,7 @@ class MusicService :
             }
 
             Timber.tag(TAG).i("FETCHING STREAM: $mediaId | quality=$audioQuality")
+            currentStreamClient.value = null
             val playbackData =
                 runBlocking(Dispatchers.IO) {
                     val song = database.songEntity(mediaId)
