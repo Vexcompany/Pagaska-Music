@@ -166,7 +166,6 @@ object YTPlayerUtils {
 
         // LOGIN_REQUIRED can be either an account/token gate or a legacy age gate.
         // Only the explicit desktopLegacyAgeGateReason signal should classify it as age-restricted.
-        val mainStatus = mainPlayerResponse?.playabilityStatus?.status
         val isAgeRestrictedFromResponse = mainPlayerResponse?.playabilityStatus.isAgeRestrictedForPlayback()
         val wasOriginallyAgeRestricted = isAgeRestrictedFromResponse
 
