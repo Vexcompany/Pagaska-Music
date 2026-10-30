@@ -43,6 +43,22 @@ class YouTubeQueueTest {
         assertEquals(0, index)
     }
 
+    @Test
+    fun `radio continuation pages omit ids already loaded and duplicates within the page`() {
+        val seenIds = mutableSetOf("seed", "already-loaded")
+        val page = listOf(
+            song("already-loaded"),
+            song("new-song"),
+            song("new-song"),
+            song("another-new-song"),
+        )
+
+        val result = page.onlyUnseenRadioItems(seenIds)
+
+        assertEquals(listOf("new-song", "another-new-song"), result.map { it.id })
+        assertEquals(setOf("seed", "already-loaded", "new-song", "another-new-song"), seenIds)
+    }
+
     private fun song(id: String) = SongItem(
         id = id,
         title = id,
