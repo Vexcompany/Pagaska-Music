@@ -35,12 +35,21 @@ class YouTubeQueueTest {
     }
 
     @Test
-    fun `selected index from YouTube is preserved`() {
+    fun `preloaded seed index takes precedence over a different selected marker`() {
         val items = listOf(song("seed"), song("recommendation"))
-        val (result, index) = items.ensurePreloadItem(metadata("seed"), 0)
+        val (result, index) = items.ensurePreloadItem(metadata("seed"), 1)
 
         assertEquals(items, result)
         assertEquals(0, index)
+    }
+
+    @Test
+    fun `selected index is preserved when there is no preload item`() {
+        val items = listOf(song("seed"), song("recommendation"))
+        val (result, index) = items.ensurePreloadItem(null, 1)
+
+        assertEquals(items, result)
+        assertEquals(1, index)
     }
 
     @Test
