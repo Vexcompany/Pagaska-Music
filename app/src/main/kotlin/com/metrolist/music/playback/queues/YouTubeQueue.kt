@@ -27,10 +27,8 @@ class YouTubeQueue(
         return withContext(IO) {
             var lastException: Throwable? = null
 
-            // Keep a plain videoId endpoint plain. Callers such as startRadioSeamlessly()
-            // intentionally use it to request YouTube's normal, personalized next/related queue.
-            // Forcing every videoId into RDAMVM changes that request into a Music Mix and can
-            // produce a noticeably different (and sometimes less relevant) audio-only queue.
+            // Keep a plain videoId endpoint plain. Radio callers use YouTube's normal,
+            // personalized next/related queue instead of switching to an RDAMVM Music Mix.
             val isRadioRequest =
                 endpoint.playlistId?.startsWith("RDAMVM") == true ||
                 (endpoint.videoId != null && endpoint.playlistId == null)
@@ -38,10 +36,10 @@ class YouTubeQueue(
             for (attempt in 0..maxRetries) {
                 try {
                     val nextResult = YouTube.next(endpoint, continuation).getOrThrow()
-                    
+
                     var items = nextResult.items
                     val relEndpoint = nextResult.relatedEndpoint
-                    
+
                     if (isRadioRequest && continuation == null && items.size <= 1) {
                         if (endpoint.playlistId?.startsWith("RDAMVM") == true) {
                             throw EmptyRadioQueueException()
@@ -105,17 +103,17 @@ class YouTubeQueue(
 
     companion object {
         /**
-         * Creates a radio queue based on a song.
-         * Explicitly requests the RDAMVM playlist to trigger automotive/radio mixing.
+         * Shared seed endpoint for explicit and seamless radio playback.
+         * Keeping it as a plain videoId makes both entry points use the same
+         * YouTube next/related recommendation source.
          */
-        fun radio(song: MediaMetadata): YouTubeQueue {
-            return YouTubeQueue(
-                WatchEndpoint(
-                    videoId = song.id,
-                    playlistId = "RDAMVM${song.id}"
-                ),
-                song
+        internal fun radioEndpoint(videoId: String): WatchEndpoint =
+            WatchEndpoint(videoId = videoId)
+
+        fun radio(song: MediaMetadata): YouTubeQueue =
+            YouTubeQueue(
+                endpoint = radioEndpoint(song.id),
+                preloadItem = song,
             )
-        }
     }
 }
