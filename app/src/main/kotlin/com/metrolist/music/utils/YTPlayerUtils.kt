@@ -41,24 +41,21 @@ object YTPlayerUtils {
 
     private val poTokenGenerator = PoTokenGenerator()
 
-    // Track videoIds whose WEB_REMIX stream URL 403'd on the ExoPlayer GET, so the next resolution
-    // falls through to the fallback clients instead of skipping HEAD validation and looping.
-    private val webRemixFailedIds = java.util.Collections.newSetFromMap(
-        java.util.concurrent.ConcurrentHashMap<String, Boolean>(),
-    )
+    private val failedStreamClientRegistry = FailedStreamClientRegistry()
 
-    fun markWebRemixFailed(videoId: String) {
-        webRemixFailedIds.add(videoId)
+    internal fun markStreamClientFailed(videoId: String, streamClientId: String) {
+        failedStreamClientRegistry.markFailed(videoId, streamClientId)
     }
 
-    /**
-     * Cleared when the cipher recovers (player config refreshed after a stream rejection): the
-     * prior WEB_REMIX failures were caused by the stale cipher, so let resolution try WEB_REMIX
-     * again instead of staying pinned to a lower fallback client for the rest of the process.
-     */
-    fun clearWebRemixFailures() {
-        webRemixFailedIds.clear()
+    internal fun clearStreamClientFailures() {
+        failedStreamClientRegistry.clear()
     }
+
+    private fun failedStreamClientIds(videoId: String): Set<String> =
+        failedStreamClientRegistry.failedClientIds(videoId)
+
+    private fun streamClientId(client: YouTubeClient): String =
+        "${client.clientName}@${client.clientVersion}"
 
     // Fire-and-forget scope for the cipher config self-heal triggered when a cipher client fails
     // stream validation during resolution. Only WEB_REMIX skips HEAD validation (so its bad URL
@@ -104,6 +101,7 @@ object YTPlayerUtils {
         val streamUrl: String,
         val streamExpiresInSeconds: Int,
         val streamClient: String = "unknown",
+        val streamClientId: String = "unknown",
     )
     /**
      * Custom player response intended to use for playback.
@@ -200,14 +198,23 @@ object YTPlayerUtils {
                 ?: musicVideoType.contains("LIVE", ignoreCase = true).takeIf { it },
             isUploaded = isUploadedTrack,
         )
-        val streamClients = fallbackStrategy.resolveClients(effectiveHints)
+        val allStreamClients = fallbackStrategy.resolveClients(effectiveHints)
+        val failedClientIds = failedStreamClientIds(videoId)
+        var streamClients = allStreamClients.filterNot { streamClientId(it) in failedClientIds }
+        if (streamClients.isEmpty() && allStreamClients.isNotEmpty()) {
+            Timber.tag(logTag).w("All playback clients were previously rejected for videoId=$videoId; resetting exclusions")
+            failedStreamClientRegistry.clear(videoId)
+            streamClients = allStreamClients
+        }
 
         var bestFallbackFormat: PlayerResponse.StreamingData.Format? = null
         var bestFallbackUrl: String? = null
         var bestFallbackExpiry: Int? = null
         var bestFallbackResponse: PlayerResponse? = null
         var bestFallbackClient: String? = null
+        var bestFallbackClientId: String? = null
         var successClient: String? = null
+        var successClientId: String? = null
 
         val hasHighQuality = mainPlayerResponse?.streamingData?.adaptiveFormats?.any { it.audioQuality == "AUDIO_QUALITY_HIGH" } == true
 
@@ -397,6 +404,7 @@ object YTPlayerUtils {
                         bestFallbackExpiry = streamExpiresInSeconds
                         bestFallbackResponse = streamPlayerResponse
                         bestFallbackClient = currentClient.clientName
+                        bestFallbackClientId = streamClientId(currentClient)
                     }
                     continue
                 }
@@ -407,22 +415,20 @@ object YTPlayerUtils {
                     Timber.tag(TAG)
                         .i("Playback: client=${currentClient.clientName}, videoId=$videoId")
                     successClient = currentClient.clientName
+                    successClientId = streamClientId(currentClient)
                     break
                 }
 
                 // WEB_REMIX authenticated CDN URLs can 403 on HEAD yet serve fine on the byte-range
                 // GET that ExoPlayer makes. Skip HEAD validation for the main client and let ExoPlayer
-                // try directly, UNLESS this videoId already 403'd on GET (markWebRemixFailed) — then
-                // fall through to the fallback clients. Saves a validateStatus round-trip per resolve.
+                // try directly unless this video/client was previously rejected for this video.
+                // Rejected clients are removed from the candidate list before the loop.
                 
                 val isUgcOrPodcast = musicVideoType == "MUSIC_VIDEO_TYPE_UGC" ||
                                      musicVideoType?.contains("PODCAST") == true ||
                                      musicVideoType == null
 
-                if (currentClient.clientName == "WEB_REMIX" &&
-                    !webRemixFailedIds.contains(videoId) &&
-                    !isUgcOrPodcast
-                ) {
+                if (currentClient.clientName == "WEB_REMIX" && !isUgcOrPodcast) {
                     Timber.tag(logTag).d("WEB_REMIX — skipping HEAD validation, letting ExoPlayer try directly")
                     Timber.tag(TAG).i("Playback: client=${currentClient.clientName}, videoId=$videoId")
                     successClient = currentClient.clientName
@@ -446,7 +452,7 @@ object YTPlayerUtils {
                     // app restart. This is what covers WEB_CREATOR/TVHTML5/WEB-only users.
                     if (needsNTransform) {
                         cipherRefreshScope.launch {
-                            if (CipherDeobfuscator.onStreamRejected()) clearWebRemixFailures()
+                            if (CipherDeobfuscator.onStreamRejected()) clearStreamClientFailures()
                         }
                     }
                 }
@@ -462,6 +468,7 @@ object YTPlayerUtils {
             streamExpiresInSeconds = bestFallbackExpiry
             streamPlayerResponse = bestFallbackResponse
             successClient = bestFallbackClient
+            successClientId = bestFallbackClientId
         }
 
         if (streamPlayerResponse == null) {
@@ -514,6 +521,7 @@ object YTPlayerUtils {
             streamUrl,
             streamExpiresInSeconds,
             streamClient = successClient ?: "unknown",
+            streamClientId = successClientId ?: "unknown",
         )
     }.onFailure { e ->
         println("[PLAYBACK_DEBUG] EXCEPTION during playback for videoId=$videoId: ${e::class.simpleName}: ${e.message}")
