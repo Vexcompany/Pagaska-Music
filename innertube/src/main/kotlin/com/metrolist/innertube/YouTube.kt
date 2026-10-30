@@ -3247,17 +3247,7 @@ object YouTube {
                                 ?: content.musicTwoRowItemRenderer?.let(RelatedPage.Companion::fromMusicTwoRowItemRenderer)
                     ) {
                         is SongItem -> {
-                            if (content.musicResponsiveListItemRenderer
-                                    ?.overlay
-                                    ?.musicItemThumbnailOverlayRenderer
-                                    ?.content
-                                    ?.musicPlayButtonRenderer
-                                    ?.playNavigationEndpoint
-                                    ?.watchEndpoint
-                                    ?.watchEndpointMusicSupportedConfigs
-                                    ?.watchEndpointMusicConfig
-                                    ?.musicVideoType == MUSIC_VIDEO_TYPE_ATV
-                            ) {
+                            if (item.musicVideoType == MUSIC_VIDEO_TYPE_ATV) {
                                 songs.add(item)
                             }
                         }
