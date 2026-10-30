@@ -3,6 +3,7 @@ package com.metrolist.music.playback.queues
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.music.models.MediaMetadata
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
