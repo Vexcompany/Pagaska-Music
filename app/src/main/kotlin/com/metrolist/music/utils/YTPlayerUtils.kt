@@ -57,7 +57,7 @@ object YTPlayerUtils {
     ) {
         streamClientFailures.compute(videoId) { _, failures ->
             val active = failures?.takeIf {
-                nowMs - it.failedAtMs in 0 until STREAM_CLIENT_FAILURE_TTL_MS
+                nowMs - it.failedAtMs in 0L until STREAM_CLIENT_FAILURE_TTL_MS
             }
             FailedStreamClients(active?.clientIds.orEmpty() + streamClientId, nowMs)
         }
@@ -68,7 +68,7 @@ object YTPlayerUtils {
         nowMs: Long = System.currentTimeMillis(),
     ): Set<String> {
         val failures = streamClientFailures[videoId] ?: return emptySet()
-        if ((nowMs - failures.failedAtMs) !in 0 until STREAM_CLIENT_FAILURE_TTL_MS) {
+        if ((nowMs - failures.failedAtMs) !in 0L until STREAM_CLIENT_FAILURE_TTL_MS) {
             streamClientFailures.remove(videoId, failures)
             return emptySet()
         }
