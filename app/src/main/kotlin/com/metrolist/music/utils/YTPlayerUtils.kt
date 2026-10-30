@@ -432,6 +432,7 @@ object YTPlayerUtils {
                     Timber.tag(logTag).d("WEB_REMIX — skipping HEAD validation, letting ExoPlayer try directly")
                     Timber.tag(TAG).i("Playback: client=${currentClient.clientName}, videoId=$videoId")
                     successClient = currentClient.clientName
+                    successClientId = streamClientId(currentClient)
                     break
                 }
 
@@ -441,6 +442,7 @@ object YTPlayerUtils {
                     // Log for release builds
                     Timber.tag(TAG).i("Playback: client=${currentClient.clientName}, videoId=$videoId")
                     successClient = currentClient.clientName
+                    successClientId = streamClientId(currentClient)
                     break
                 } else {
                     Timber.tag(logTag).d("Stream validation failed for client: ${currentClient.clientName}")
