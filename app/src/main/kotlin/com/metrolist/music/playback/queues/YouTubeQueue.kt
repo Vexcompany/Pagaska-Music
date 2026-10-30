@@ -46,7 +46,10 @@ class YouTubeQueue(
                         } else if (relEndpoint != null) {
                             val relatedPage = YouTube.related(relEndpoint).getOrNull()
                             if (relatedPage != null && relatedPage.songs.isNotEmpty()) {
-                                val relatedSongs = relatedPage.songs.filter { it.id != endpoint.videoId }
+                                val existingIds = items.mapTo(mutableSetOf()) { it.id }
+                                val relatedSongs = relatedPage.songs
+                                    .filter { it.id != endpoint.videoId && it.id !in existingIds }
+                                    .distinctBy { it.id }
                                 items = items + relatedSongs
                             }
                         }
