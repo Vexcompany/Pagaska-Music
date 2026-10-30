@@ -43,7 +43,7 @@ object YTPlayerUtils {
 
     private const val STREAM_CLIENT_FAILURE_TTL_MS = 5 * 60 * 1000L
     private data class FailedStreamClients(
-        val clientNames: Set<String>,
+        val clientIds: Set<String>,
         val failedAtMs: Long,
     )
     private val streamClientFailures =
@@ -52,11 +52,11 @@ object YTPlayerUtils {
     /** Exclude only the client that failed for this video; keep other clients available. */
     fun markStreamClientFailed(
         videoId: String,
-        clientName: String,
+        streamClientId: String,
         nowMs: Long = System.currentTimeMillis(),
     ) {
         streamClientFailures.compute(videoId) { _, failures ->
-            FailedStreamClients(failures?.clientNames.orEmpty() + clientName, nowMs)
+            FailedStreamClients(failures?.clientIds.orEmpty() + streamClientId, nowMs)
         }
     }
 
@@ -69,7 +69,11 @@ object YTPlayerUtils {
             streamClientFailures.remove(videoId, failures)
             return emptySet()
         }
-        return failures.clientNames
+        return failures.clientIds
+    }
+
+    internal fun clearStreamClientFailures(videoId: String) {
+        streamClientFailures.remove(videoId)
     }
 
     /** A refreshed cipher config can make previously rejected stream clients usable again. */
@@ -77,8 +81,11 @@ object YTPlayerUtils {
         streamClientFailures.clear()
     }
 
+    private fun streamClientId(client: YouTubeClient): String =
+        "${client.clientName}@${client.clientVersion}"
+
     // Compatibility wrappers for existing call sites while recovery is migrated.
-    fun markWebRemixFailed(videoId: String) = markStreamClientFailed(videoId, "WEB_REMIX")
+    fun markWebRemixFailed(videoId: String) = markStreamClientFailed(videoId, streamClientId(WEB_REMIX))
     fun clearWebRemixFailures() = clearStreamClientFailures()
 
     // Fire-and-forget scope for the cipher config self-heal triggered when a cipher client fails
@@ -125,6 +132,7 @@ object YTPlayerUtils {
         val streamUrl: String,
         val streamExpiresInSeconds: Int,
         val streamClient: String = "unknown",
+        val streamClientId: String = "unknown",
     )
     /**
      * Custom player response intended to use for playback.
@@ -187,11 +195,9 @@ object YTPlayerUtils {
             println("[PLAYBACK_DEBUG] Adaptive formats count: ${mainPlayerResponse?.streamingData?.adaptiveFormats?.size ?: 0}")
         }
 
-        // Check if WEB_REMIX response indicates age-restricted
-        val mainStatus = mainPlayerResponse?.playabilityStatus?.status
-        // LOGIN_REQUIRED is a generic YouTube playability status, not proof of age restriction.
-        // Treating it as age-restricted incorrectly disables the normal signature timestamp and NewPipe URL path.
-        val isAgeRestrictedFromResponse = mainStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        // LOGIN_REQUIRED can be either an account/token gate or a legacy age gate.
+        // Only an explicit desktopLegacyAgeGateReason signal should classify it as age-restricted.
+        val isAgeRestrictedFromResponse = mainPlayerResponse?.playabilityStatus.isAgeRestrictedForPlayback()
         val wasOriginallyAgeRestricted = isAgeRestrictedFromResponse
 
         var audioConfig = mainPlayerResponse?.playerConfig?.audioConfig
@@ -202,9 +208,9 @@ object YTPlayerUtils {
         var streamExpiresInSeconds: Int? = null
         var streamPlayerResponse: PlayerResponse? = null
 
-        // Check current status
+        // Keep the status for diagnostics while sharing the explicit age-gate classification.
         val currentStatus = mainPlayerResponse?.playabilityStatus?.status
-        val isAgeRestricted = currentStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        val isAgeRestricted = mainPlayerResponse?.playabilityStatus.isAgeRestrictedForPlayback()
 
         if (isAgeRestricted) {
             Timber.tag(logTag).d("Content is still age-restricted (status: $currentStatus), will try fallback clients")
@@ -221,14 +227,23 @@ object YTPlayerUtils {
                 ?: musicVideoType.contains("LIVE", ignoreCase = true).takeIf { it },
             isUploaded = isUploadedTrack,
         )
-        val streamClients = fallbackStrategy.resolveClients(effectiveHints)
+        val allStreamClients = fallbackStrategy.resolveClients(effectiveHints)
+        val failedClientIds = failedStreamClients(videoId)
+        var streamClients = allStreamClients.filterNot { streamClientId(it) in failedClientIds }
+        if (streamClients.isEmpty() && allStreamClients.isNotEmpty()) {
+            Timber.tag(logTag).w("All playback clients were previously rejected for videoId=$videoId; resetting exclusions")
+            clearStreamClientFailures(videoId)
+            streamClients = allStreamClients
+        }
 
         var bestFallbackFormat: PlayerResponse.StreamingData.Format? = null
         var bestFallbackUrl: String? = null
         var bestFallbackExpiry: Int? = null
         var bestFallbackResponse: PlayerResponse? = null
         var bestFallbackClient: String? = null
+        var bestFallbackClientId: String? = null
         var successClient: String? = null
+        var successClientId: String? = null
 
         val hasHighQuality = mainPlayerResponse?.streamingData?.adaptiveFormats?.any { it.audioQuality == "AUDIO_QUALITY_HIGH" } == true
 
@@ -246,11 +261,6 @@ object YTPlayerUtils {
             }
             if (disabledClientName in disabledStreamClients) {
                 Timber.tag(logTag).d("Skipping client ${client.clientName} - disabled in stream sources")
-                continue
-            }
-
-            if (client.clientName in failedStreamClients(videoId)) {
-                Timber.tag(logTag).d("Skipping client ${client.clientName} - recently failed for this video")
                 continue
             }
 
@@ -423,6 +433,7 @@ object YTPlayerUtils {
                         bestFallbackExpiry = streamExpiresInSeconds
                         bestFallbackResponse = streamPlayerResponse
                         bestFallbackClient = currentClient.clientName
+                        bestFallbackClientId = streamClientId(currentClient)
                     }
                     continue
                 }
@@ -433,25 +444,24 @@ object YTPlayerUtils {
                     Timber.tag(TAG)
                         .i("Playback: client=${currentClient.clientName}, videoId=$videoId")
                     successClient = currentClient.clientName
+                    successClientId = streamClientId(currentClient)
                     break
                 }
 
                 // WEB_REMIX authenticated CDN URLs can 403 on HEAD yet serve fine on the byte-range
                 // GET that ExoPlayer makes. Skip HEAD validation for the main client and let ExoPlayer
-                // try directly, UNLESS this videoId already 403'd on GET (markWebRemixFailed) — then
-                // fall through to the fallback clients. Saves a validateStatus round-trip per resolve.
+                // try directly unless this client profile was previously rejected for this video.
+                // Rejected profiles are removed from the candidate list before the loop.
                 
                 val isUgcOrPodcast = musicVideoType == "MUSIC_VIDEO_TYPE_UGC" ||
                                      musicVideoType?.contains("PODCAST") == true ||
                                      musicVideoType == null
 
-                if (currentClient.clientName == "WEB_REMIX" &&
-                    !webRemixFailedIds.contains(videoId) &&
-                    !isUgcOrPodcast
-                ) {
+                if (currentClient.clientName == "WEB_REMIX" && !isUgcOrPodcast) {
                     Timber.tag(logTag).d("WEB_REMIX — skipping HEAD validation, letting ExoPlayer try directly")
                     Timber.tag(TAG).i("Playback: client=${currentClient.clientName}, videoId=$videoId")
                     successClient = currentClient.clientName
+                    successClientId = streamClientId(currentClient)
                     break
                 }
 
@@ -461,6 +471,7 @@ object YTPlayerUtils {
                     // Log for release builds
                     Timber.tag(TAG).i("Playback: client=${currentClient.clientName}, videoId=$videoId")
                     successClient = currentClient.clientName
+                    successClientId = streamClientId(currentClient)
                     break
                 } else {
                     Timber.tag(logTag).d("Stream validation failed for client: ${currentClient.clientName}")
@@ -472,7 +483,7 @@ object YTPlayerUtils {
                     // app restart. This is what covers WEB_CREATOR/TVHTML5/WEB-only users.
                     if (needsNTransform) {
                         cipherRefreshScope.launch {
-                            if (CipherDeobfuscator.onStreamRejected()) clearWebRemixFailures()
+                            if (CipherDeobfuscator.onStreamRejected()) clearStreamClientFailures()
                         }
                     }
                 }
@@ -488,6 +499,7 @@ object YTPlayerUtils {
             streamExpiresInSeconds = bestFallbackExpiry
             streamPlayerResponse = bestFallbackResponse
             successClient = bestFallbackClient
+            successClientId = bestFallbackClientId
         }
 
         if (streamPlayerResponse == null) {
@@ -540,6 +552,7 @@ object YTPlayerUtils {
             streamUrl,
             streamExpiresInSeconds,
             streamClient = successClient ?: "unknown",
+            streamClientId = successClientId ?: "unknown",
         )
     }.onFailure { e ->
         println("[PLAYBACK_DEBUG] EXCEPTION during playback for videoId=$videoId: ${e::class.simpleName}: ${e.message}")
