@@ -154,11 +154,12 @@ class YouTubeQueue(
 
 
 /**
- * Keep the preloaded song aligned with Queue.Status.mediaItemIndex.
+ * Keep the actual preloaded song aligned with Queue.Status.mediaItemIndex.
  *
- * A next response may omit its selected-item marker. In that case, defaulting
- * the index to zero would make MusicService skip the first recommendation as
- * though it were the already-preloaded seed.
+ * MusicService already plays [preloadItem] before adding the returned queue.
+ * The index must therefore point to that exact song, not an unrelated selected
+ * marker; if YouTube omits the seed, insert it so the first recommendation is
+ * never skipped as though it were the preloaded song.
  */
 internal fun List<SongItem>.ensurePreloadItem(
     preloadItem: MediaMetadata?,
