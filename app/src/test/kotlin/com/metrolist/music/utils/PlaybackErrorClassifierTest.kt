@@ -10,7 +10,8 @@ import org.junit.Test
 class PlaybackErrorClassifierTest {
     @Test
     fun `nested dns failure prevents stream client rotation for unspecified error`() {
-        val causes = listOf(IOException("request failed", UnknownHostException("dns lookup failed")))
+        val causes = IOException("request failed", UnknownHostException("dns lookup failed"))
+            .playbackCauseChain()
 
         assertTrue(causes.hasNetworkTransportCause())
         assertFalse(
