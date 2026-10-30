@@ -56,6 +56,7 @@ class YouTubeQueueTest {
     fun `radio continuation pages omit ids already loaded and duplicates within the page`() {
         val seenIds = mutableSetOf("seed", "already-loaded")
         val page = listOf(
+            song("seed"),
             song("already-loaded"),
             song("new-song"),
             song("new-song"),
