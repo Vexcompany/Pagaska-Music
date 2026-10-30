@@ -24,6 +24,18 @@ class YTPlayerUtilsFailureTest {
         assertTrue(YTPlayerUtils.failedStreamClients("song-a", nowMs = 302_000L).isEmpty())
     }
 
+
+    @Test
+    fun expiredFailureIsNotCarriedIntoANewClientFailure() {
+        YTPlayerUtils.markStreamClientFailed("song-a", "WEB_REMIX@1.2026", nowMs = 1_000L)
+        YTPlayerUtils.markStreamClientFailed("song-a", "WEB_REMIX@2.2026", nowMs = 301_000L)
+
+        assertEquals(
+            setOf("WEB_REMIX@2.2026"),
+            YTPlayerUtils.failedStreamClients("song-a", nowMs = 302_000L),
+        )
+    }
+
     @Test
     fun cipherRecoveryClearsFailedClientState() {
         YTPlayerUtils.markStreamClientFailed("song-a", "WEB_REMIX@1.2026", nowMs = 1_000L)
