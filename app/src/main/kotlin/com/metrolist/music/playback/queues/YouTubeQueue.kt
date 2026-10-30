@@ -164,9 +164,7 @@ internal fun List<SongItem>.ensurePreloadItem(
     preloadItem: MediaMetadata?,
     selectedIndex: Int?,
 ): Pair<List<SongItem>, Int> {
-    if (selectedIndex != null) return this to selectedIndex
-
-    val preload = preloadItem ?: return this to 0
+    val preload = preloadItem ?: return this to (selectedIndex ?: 0)
     val existingIndex = indexOfFirst { it.id == preload.id }
     if (existingIndex >= 0) return this to existingIndex
 
