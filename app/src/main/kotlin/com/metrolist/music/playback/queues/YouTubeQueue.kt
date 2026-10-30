@@ -21,6 +21,10 @@ class YouTubeQueue(
     private var continuation: String? = null
     private var retryCount = 0
     private val maxRetries = 3
+    private val isRadioRequest =
+        endpoint.playlistId?.startsWith("RDAMVM") == true ||
+            (endpoint.videoId != null && endpoint.playlistId == null)
+    private val loadedRadioIds = mutableSetOf<String>()
 
     private class EmptyRadioQueueException : IllegalStateException()
 
@@ -30,9 +34,7 @@ class YouTubeQueue(
 
             // Keep a plain videoId endpoint plain. Radio callers use YouTube's normal,
             // personalized next/related queue instead of switching to an RDAMVM Music Mix.
-            val isRadioRequest =
-                endpoint.playlistId?.startsWith("RDAMVM") == true ||
-                (endpoint.videoId != null && endpoint.playlistId == null)
+            loadedRadioIds.clear()
 
             for (attempt in 0..maxRetries) {
                 try {
@@ -56,8 +58,25 @@ class YouTubeQueue(
                         }
                     }
 
+                    val selectedItemId =
+                        nextResult.currentIndex?.let { items.getOrNull(it)?.id }
+                    val normalizedItems =
+                        if (isRadioRequest) {
+                            items.onlyUnseenRadioItems(mutableSetOf())
+                        } else {
+                            items
+                        }
+                    val selectedIndex =
+                        if (isRadioRequest && selectedItemId != null) {
+                            normalizedItems.indexOfFirst { it.id == selectedItemId }.takeIf { it >= 0 }
+                        } else {
+                            nextResult.currentIndex
+                        }
                     val (queueItems, mediaItemIndex) =
-                        items.ensurePreloadItem(preloadItem, nextResult.currentIndex)
+                        normalizedItems.ensurePreloadItem(preloadItem, selectedIndex)
+                    if (isRadioRequest) {
+                        loadedRadioIds.addAll(queueItems.map { it.id })
+                    }
 
                     endpoint = nextResult.endpoint
                     continuation = nextResult.continuation
@@ -95,7 +114,13 @@ class YouTubeQueue(
                     endpoint = nextResult.endpoint
                     continuation = nextResult.continuation
                     retryCount = 0
-                    return@withContext nextResult.items.map { it.toMediaItem() }
+                    val pageItems =
+                        if (isRadioRequest) {
+                            nextResult.items.onlyUnseenRadioItems(loadedRadioIds)
+                        } else {
+                            nextResult.items
+                        }
+                    return@withContext pageItems.map { it.toMediaItem() }
                 } catch (e: Exception) {
                     lastException = e
                     retryCount++
@@ -145,3 +170,8 @@ internal fun List<SongItem>.ensurePreloadItem(
 
     return (listOf(preload.toYTItem()) + this) to 0
 }
+
+
+/** Keep only the first occurrence of each radio item across the loaded pages. */
+internal fun List<SongItem>.onlyUnseenRadioItems(seenIds: MutableSet<String>): List<SongItem> =
+    filter { seenIds.add(it.id) }
