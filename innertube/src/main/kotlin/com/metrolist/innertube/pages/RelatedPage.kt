@@ -25,14 +25,6 @@ data class RelatedPage(
             // Extract library tokens using the new method that properly handles multiple toggle items
             val libraryTokens = PageHelper.extractLibraryTokensFromMenuItems(renderer.menu?.menuRenderer?.items)
 
-            // Split the secondary line by bullet separator to separate artists from other metadata (like views)
-            val secondaryLineRuns = renderer.flexColumns
-                .getOrNull(1)
-                ?.musicResponsiveListItemFlexColumnRenderer
-                ?.text
-                ?.runs
-                ?.splitBySeparator()
-
             return SongItem(
                 id = renderer.videoId ?: return null,
                 title =
@@ -43,20 +35,25 @@ data class RelatedPage(
                         ?.runs
                         ?.firstOrNull()
                         ?.text ?: return null,
-                artists =
-                    secondaryLineRuns?.firstOrNull()?.oddElements()?.map {
-                        Artist(
-                            name = it.text,
-                            id = it.navigationEndpoint?.browseEndpoint?.browseId,
-                        )
-                    } ?: return null,
+                artists = PageHelper.extractArtists(
+                    renderer.flexColumns
+                        .getOrNull(1)
+                        ?.musicResponsiveListItemFlexColumnRenderer
+                        ?.text
+                        ?.runs,
+                ),
                 album =
-                    renderer.flexColumns.getOrNull(2)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.firstOrNull()?.let {
-                        Album(
-                            name = it.text,
-                            id = it.navigationEndpoint?.browseEndpoint?.browseId ?: return null,
-                        )
-                    },
+                    renderer.flexColumns
+                        .getOrNull(2)
+                        ?.musicResponsiveListItemFlexColumnRenderer
+                        ?.text
+                        ?.runs
+                        ?.firstOrNull()
+                        ?.let { run ->
+                            run.navigationEndpoint?.browseEndpoint?.browseId?.let { browseId ->
+                                Album(name = run.text, id = browseId)
+                            }
+                        },
                 duration = renderer.fixedColumns?.firstOrNull()
                     ?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.firstOrNull()
                     ?.text?.parseTime(),
