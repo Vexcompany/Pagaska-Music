@@ -3030,7 +3030,7 @@ class MusicService :
 
             isStreamClientError(error) -> {
                 Timber.tag(TAG).d(
-                    "Stream-source failure detected; rotating client for $mediaId (client=${failedStreamClientId ?: "unknown"}, code=${error.errorCode}),
+                    "Stream-source failure detected; rotating client for $mediaId (client=${failedStreamClientId ?: "unknown"}, code=${error.errorCode})",
                 )
                 handleStreamClientError(mediaId, failedStreamClientId)
                 return
