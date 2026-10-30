@@ -2945,6 +2945,34 @@ class MusicService :
     private fun isRemotePlaybackError(error: PlaybackException): Boolean =
         error.errorCode == PlaybackException.ERROR_CODE_REMOTE_ERROR
 
+    private fun isStreamClientError(error: PlaybackException): Boolean =
+        error.causeChain()
+            .filterIsInstance<PlaybackException>()
+            .any { cause ->
+                cause.errorCode in setOf(
+                    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                    PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
+                    PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+                    PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+                    PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+                    PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
+                    PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
+                )
+            }
+
+    private fun Throwable.causeChain(maxDepth: Int = 8): List<Throwable> {
+        val seen = java.util.Collections.newSetFromMap(
+            java.util.IdentityHashMap<Throwable, Boolean>(),
+        )
+        val result = ArrayList<Throwable>(maxDepth)
+        var current: Throwable? = this
+        while (current != null && result.size < maxDepth && seen.add(current)) {
+            result += current
+            current = current.cause
+        }
+        return result
+    }
+
     /**
      * Media3 uses 2000 (IO_UNSPECIFIED) for source failures where the useful cause is
      * nested underneath ExoPlaybackException/Loader. These failures are often recoverable
@@ -3014,6 +3042,15 @@ class MusicService :
             isRemotePlaybackError(error) -> {
                 Timber.tag(TAG).d("Remote playback error detected (${error.errorCode}), refreshing stream URL")
                 handleExpiredUrlError(mediaId)
+                return
+            }
+
+            isStreamClientError(error) -> {
+                val failedClient = currentStreamClient.value
+                Timber.tag(TAG).d(
+                    "Stream-source failure detected; rotating client for $mediaId (client=$failedClient, code=${error.errorCode})",
+                )
+                handleStreamClientError(mediaId, failedClient)
                 return
             }
 
@@ -3244,10 +3281,12 @@ class MusicService :
         incrementRetryCount(mediaId)
 
         songUrlCache.remove(mediaId)
-        // A 403/410 on GET means the (HEAD-unvalidated) WEB_REMIX stream URL was bad — mark it so the
-        // re-resolution falls through to the fallback clients instead of retrying WEB_REMIX.
-        YTPlayerUtils.markWebRemixFailed(mediaId)
-        Timber.tag(TAG).d("Cleared cached URL for $mediaId, marked WEB_REMIX failed")
+        val failedClient = currentStreamClient.value
+        if (!failedClient.isNullOrBlank()) {
+            YTPlayerUtils.markStreamClientFailed(mediaId, failedClient)
+        }
+        currentStreamClient.value = null
+        Timber.tag(TAG).d("Cleared cached URL for $mediaId; excluded failed stream client=$failedClient")
 
         try {
             YTPlayerUtils.forceRefreshForVideo(mediaId)
@@ -3262,8 +3301,8 @@ class MusicService :
         // to WEB_REMIX — no app restart. Affects every cipher client (WEB_REMIX/WEB_CREATOR/TVHTML5/WEB).
         scope.launch {
             if (CipherDeobfuscator.onStreamRejected()) {
-                Timber.tag(TAG).d("Player config changed after stream rejection — restoring WEB_REMIX")
-                YTPlayerUtils.clearWebRemixFailures()
+                Timber.tag(TAG).d("Player config changed after stream rejection; re-enabling previously failed clients")
+                YTPlayerUtils.clearStreamClientFailures()
             }
         }
 
@@ -3314,6 +3353,22 @@ class MusicService :
 
                 Timber.tag(TAG).d("Retrying playback for $mediaId after IO_FILE_NOT_FOUND")
             }
+    }
+
+    private fun handleStreamClientError(
+        mediaId: String?,
+        failedStreamClient: String?,
+    ) {
+        if (mediaId == null) {
+            handleFinalFailure()
+            return
+        }
+
+        if (!failedStreamClient.isNullOrBlank()) {
+            YTPlayerUtils.markStreamClientFailed(mediaId, failedStreamClient)
+        }
+        currentStreamClient.value = null
+        handleGenericIOError(mediaId)
     }
 
     /**
