@@ -41,24 +41,45 @@ object YTPlayerUtils {
 
     private val poTokenGenerator = PoTokenGenerator()
 
-    // Track videoIds whose WEB_REMIX stream URL 403'd on the ExoPlayer GET, so the next resolution
-    // falls through to the fallback clients instead of skipping HEAD validation and looping.
-    private val webRemixFailedIds = java.util.Collections.newSetFromMap(
-        java.util.concurrent.ConcurrentHashMap<String, Boolean>(),
+    private const val STREAM_CLIENT_FAILURE_TTL_MS = 5 * 60 * 1000L
+    private data class FailedStreamClients(
+        val clientNames: Set<String>,
+        val failedAtMs: Long,
     )
+    private val streamClientFailures =
+        java.util.concurrent.ConcurrentHashMap<String, FailedStreamClients>()
 
-    fun markWebRemixFailed(videoId: String) {
-        webRemixFailedIds.add(videoId)
+    /** Exclude only the client that failed for this video; keep other clients available. */
+    fun markStreamClientFailed(
+        videoId: String,
+        clientName: String,
+        nowMs: Long = System.currentTimeMillis(),
+    ) {
+        streamClientFailures.compute(videoId) { _, failures ->
+            FailedStreamClients(failures?.clientNames.orEmpty() + clientName, nowMs)
+        }
     }
 
-    /**
-     * Cleared when the cipher recovers (player config refreshed after a stream rejection): the
-     * prior WEB_REMIX failures were caused by the stale cipher, so let resolution try WEB_REMIX
-     * again instead of staying pinned to a lower fallback client for the rest of the process.
-     */
-    fun clearWebRemixFailures() {
-        webRemixFailedIds.clear()
+    internal fun failedStreamClients(
+        videoId: String,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Set<String> {
+        val failures = streamClientFailures[videoId] ?: return emptySet()
+        if ((nowMs - failures.failedAtMs) !in 0 until STREAM_CLIENT_FAILURE_TTL_MS) {
+            streamClientFailures.remove(videoId, failures)
+            return emptySet()
+        }
+        return failures.clientNames
     }
+
+    /** A refreshed cipher config can make previously rejected stream clients usable again. */
+    fun clearStreamClientFailures() {
+        streamClientFailures.clear()
+    }
+
+    // Compatibility wrappers for existing call sites while recovery is migrated.
+    fun markWebRemixFailed(videoId: String) = markStreamClientFailed(videoId, "WEB_REMIX")
+    fun clearWebRemixFailures() = clearStreamClientFailures()
 
     // Fire-and-forget scope for the cipher config self-heal triggered when a cipher client fails
     // stream validation during resolution. Only WEB_REMIX skips HEAD validation (so its bad URL
@@ -225,6 +246,11 @@ object YTPlayerUtils {
             }
             if (disabledClientName in disabledStreamClients) {
                 Timber.tag(logTag).d("Skipping client ${client.clientName} - disabled in stream sources")
+                continue
+            }
+
+            if (client.clientName in failedStreamClients(videoId)) {
+                Timber.tag(logTag).d("Skipping client ${client.clientName} - recently failed for this video")
                 continue
             }
 
