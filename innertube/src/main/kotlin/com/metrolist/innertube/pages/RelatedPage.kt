@@ -10,8 +10,6 @@ import com.metrolist.innertube.models.PlaylistItem
 import com.metrolist.innertube.models.PodcastItem
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.YTItem
-import com.metrolist.innertube.models.oddElements
-import com.metrolist.innertube.models.splitBySeparator
 import com.metrolist.innertube.utils.parseTime
 
 data class RelatedPage(
@@ -25,14 +23,6 @@ data class RelatedPage(
             // Extract library tokens using the new method that properly handles multiple toggle items
             val libraryTokens = PageHelper.extractLibraryTokensFromMenuItems(renderer.menu?.menuRenderer?.items)
 
-            // Split the secondary line by bullet separator to separate artists from other metadata (like views)
-            val secondaryLineRuns = renderer.flexColumns
-                .getOrNull(1)
-                ?.musicResponsiveListItemFlexColumnRenderer
-                ?.text
-                ?.runs
-                ?.splitBySeparator()
-
             return SongItem(
                 id = renderer.videoId ?: return null,
                 title =
@@ -43,20 +33,25 @@ data class RelatedPage(
                         ?.runs
                         ?.firstOrNull()
                         ?.text ?: return null,
-                artists =
-                    secondaryLineRuns?.firstOrNull()?.oddElements()?.map {
-                        Artist(
-                            name = it.text,
-                            id = it.navigationEndpoint?.browseEndpoint?.browseId,
-                        )
-                    } ?: return null,
+                artists = PageHelper.extractArtists(
+                    renderer.flexColumns
+                        .getOrNull(1)
+                        ?.musicResponsiveListItemFlexColumnRenderer
+                        ?.text
+                        ?.runs,
+                ),
                 album =
-                    renderer.flexColumns.getOrNull(2)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.firstOrNull()?.let {
-                        Album(
-                            name = it.text,
-                            id = it.navigationEndpoint?.browseEndpoint?.browseId ?: return null,
-                        )
-                    },
+                    renderer.flexColumns
+                        .getOrNull(2)
+                        ?.musicResponsiveListItemFlexColumnRenderer
+                        ?.text
+                        ?.runs
+                        ?.firstOrNull()
+                        ?.let { run ->
+                            run.navigationEndpoint?.browseEndpoint?.browseId?.let { browseId ->
+                                Album(name = run.text, id = browseId)
+                            }
+                        },
                 duration = renderer.fixedColumns?.firstOrNull()
                     ?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.firstOrNull()
                     ?.text?.parseTime(),
@@ -73,7 +68,45 @@ data class RelatedPage(
         }
 
         fun fromMusicTwoRowItemRenderer(renderer: MusicTwoRowItemRenderer): YTItem? {
+            val songEndpoint =
+                renderer.navigationEndpoint.anyWatchEndpoint?.takeIf { it.videoId != null }
+                    ?: renderer.thumbnailOverlay
+                        ?.musicItemThumbnailOverlayRenderer
+                        ?.content
+                        ?.musicPlayButtonRenderer
+                        ?.playNavigationEndpoint
+                        ?.anyWatchEndpoint
+                        ?.takeIf { it.videoId != null }
+
             return when {
+                songEndpoint != null -> {
+                    val endpoint = songEndpoint
+                    val libraryTokens = PageHelper.extractLibraryTokensFromMenuItems(
+                        renderer.menu?.menuRenderer?.items,
+                    )
+
+                    SongItem(
+                        id = endpoint.videoId ?: return null,
+                        title = renderer.title.runs?.firstOrNull()?.text ?: return null,
+                        artists = PageHelper.extractArtists(renderer.subtitle?.runs),
+                        album = renderer.subtitle?.runs.orEmpty().firstNotNullOfOrNull { run ->
+                            run.navigationEndpoint?.browseEndpoint
+                                ?.takeIf { it.isAlbumEndpoint }
+                                ?.let { Album(name = run.text, id = it.browseId) }
+                        },
+                        duration = PageHelper.extractDuration(renderer.subtitle?.runs),
+                        musicVideoType = renderer.musicVideoType,
+                        thumbnail = renderer.thumbnailRenderer.getThumbnailUrl() ?: return null,
+                        explicit = renderer.subtitleBadges?.any {
+                            it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE"
+                        } == true,
+                        endpoint = endpoint,
+                        setVideoId = endpoint.playlistSetVideoId,
+                        libraryAddToken = libraryTokens.addToken,
+                        libraryRemoveToken = libraryTokens.removeToken,
+                        isEpisode = renderer.isEpisode,
+                    )
+                }
                 renderer.isAlbum ->
                     AlbumItem(
                         browseId = renderer.navigationEndpoint.browseEndpoint?.browseId ?: return null,

@@ -3234,7 +3234,7 @@ object YouTube {
 
     suspend fun related(endpoint: BrowseEndpoint): Result<RelatedPage> =
         runCatching {
-            val response = innerTube.browse(WEB_REMIX, endpoint.browseId).body<BrowseResponse>()
+            val response = innerTube.browse(WEB_REMIX, endpoint.browseId, endpoint.params).body<BrowseResponse>()
             val songs = mutableListOf<SongItem>()
             val albums = mutableListOf<AlbumItem>()
             val artists = mutableListOf<ArtistItem>()
@@ -3247,17 +3247,7 @@ object YouTube {
                                 ?: content.musicTwoRowItemRenderer?.let(RelatedPage.Companion::fromMusicTwoRowItemRenderer)
                     ) {
                         is SongItem -> {
-                            if (content.musicResponsiveListItemRenderer
-                                    ?.overlay
-                                    ?.musicItemThumbnailOverlayRenderer
-                                    ?.content
-                                    ?.musicPlayButtonRenderer
-                                    ?.playNavigationEndpoint
-                                    ?.watchEndpoint
-                                    ?.watchEndpointMusicSupportedConfigs
-                                    ?.watchEndpointMusicConfig
-                                    ?.musicVideoType == MUSIC_VIDEO_TYPE_ATV
-                            ) {
+                            if (item.musicVideoType == MUSIC_VIDEO_TYPE_ATV) {
                                 songs.add(item)
                             }
                         }

@@ -1883,10 +1883,7 @@ class MusicService :
             // Use simple videoId to let YouTube personalize recommendations
             val radioQueue =
                 YouTubeQueue(
-                    endpoint =
-                        WatchEndpoint(
-                            videoId = currentMediaId,
-                        ),
+                    endpoint = YouTubeQueue.radioEndpoint(currentMediaId),
                 )
 
             try {
@@ -1903,9 +1900,9 @@ class MusicService :
                 }
 
                 val radioItems =
-                    initialStatus.items.filter { item ->
-                        item.mediaId != currentMediaId
-                    }
+                    initialStatus.items
+                        .filterNot { it.mediaId == currentMediaId }
+                        .distinctBy { it.mediaId }
 
                 if (radioItems.isNotEmpty()) {
                     val itemCount = player.mediaItemCount
@@ -1926,7 +1923,7 @@ class MusicService :
                 try {
                     val nextResult =
                         withContext(Dispatchers.IO) {
-                            YouTube.next(WatchEndpoint(videoId = currentMediaId)).getOrNull()
+                            YouTube.next(YouTubeQueue.radioEndpoint(currentMediaId)).getOrNull()
                         }
                     nextResult?.relatedEndpoint?.let { relatedEndpoint ->
                         val relatedPage =
@@ -1936,7 +1933,8 @@ class MusicService :
                         relatedPage?.songs?.let { songs ->
                             val radioItems =
                                 songs
-                                    .filter { it.id != currentMediaId }
+                                    .filterNot { it.id == currentMediaId }
+                                    .distinctBy { it.id }
                                     .map { it.toMediaItem() }
                                     .filterExplicit(cachedHideExplicit)
                                     .filterVideoSongs(cachedHideVideoSongs)
@@ -1978,6 +1976,15 @@ class MusicService :
             !(dataStore.get(DisableLoadMoreWhenRepeatAllKey, false) && player.repeatMode == REPEAT_MODE_ALL)
         ) {
             scope.launch(SilentHandler) {
+                val hideExplicit = dataStore.get(HideExplicitKey, false)
+                val hideVideoSongs = dataStore.get(HideVideoSongsKey, false)
+                val normalizeItems: (List<MediaItem>) -> List<MediaItem> = { items ->
+                    items
+                        .filterExplicit(hideExplicit)
+                        .filterVideoSongs(hideVideoSongs)
+                        .distinctBy { it.mediaId }
+                }
+
                 try {
                     YouTube
                         .next(WatchEndpoint(playlistId = playlistId))
@@ -1985,46 +1992,45 @@ class MusicService :
                             YouTube
                                 .next(WatchEndpoint(playlistId = firstResult.endpoint.playlistId))
                                 .onSuccess { secondResult ->
-                                    automixItems.value =
-                                        secondResult.items.map { song ->
-                                            song.toMediaItem()
-                                        }
+                                    val items = normalizeItems(secondResult.items.map { it.toMediaItem() })
+                                    if (items.isNotEmpty()) {
+                                        automixItems.value = items
+                                    }
                                 }.onFailure {
-                                    if (firstResult.items.isNotEmpty()) {
-                                        automixItems.value =
-                                            firstResult.items.map { song ->
-                                                song.toMediaItem()
-                                            }
+                                    val items = normalizeItems(firstResult.items.map { it.toMediaItem() })
+                                    if (items.isNotEmpty()) {
+                                        automixItems.value = items
                                     }
                                 }
                         }.onFailure {
                             val currentSong = player.currentMetadata
                             if (currentSong != null) {
-                                // Use simple videoId for better personalized recommendations
+                                // Use the same plain videoId seed as seamless radio playback.
                                 YouTube
-                                    .next(
-                                        WatchEndpoint(
-                                            videoId = currentSong.id,
-                                        ),
-                                    ).onSuccess { radioResult ->
+                                    .next(YouTubeQueue.radioEndpoint(currentSong.id))
+                                    .onSuccess { radioResult ->
                                         val filteredItems =
-                                            radioResult.items
-                                                .filter { it.id != currentSong.id }
-                                                .map { it.toMediaItem() }
+                                            normalizeItems(
+                                                radioResult.items
+                                                    .filterNot { it.id == currentSong.id }
+                                                    .map { it.toMediaItem() },
+                                            )
                                         if (filteredItems.isNotEmpty()) {
                                             automixItems.value = filteredItems
                                         }
                                     }.onFailure {
                                         YouTube
-                                            .next(WatchEndpoint(videoId = currentSong.id))
+                                            .next(YouTubeQueue.radioEndpoint(currentSong.id))
                                             .getOrNull()
                                             ?.relatedEndpoint
                                             ?.let { relatedEndpoint ->
                                                 YouTube.related(relatedEndpoint).onSuccess { relatedPage ->
                                                     val relatedItems =
-                                                        relatedPage.songs
-                                                            .filter { it.id != currentSong.id }
-                                                            .map { it.toMediaItem() }
+                                                        normalizeItems(
+                                                            relatedPage.songs
+                                                                .filterNot { it.id == currentSong.id }
+                                                                .map { it.toMediaItem() },
+                                                        )
                                                     if (relatedItems.isNotEmpty()) {
                                                         automixItems.value = relatedItems
                                                     }
