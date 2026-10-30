@@ -29,8 +29,8 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Run FOSS JVM unit tests (no APK)
-        run: ./gradlew --console=plain :app:testFossDebugUnitTest --warning-mode summary
+      - name: Run FOSS and InnerTube JVM unit tests (no APK)
+        run: ./gradlew --console=plain :app:testFossDebugUnitTest :innertube:testDebugUnitTest --warning-mode summary
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           PAGASKA_APPLICATION_ID: com.metrolist.music.pr.p${{ github.event.number }}
