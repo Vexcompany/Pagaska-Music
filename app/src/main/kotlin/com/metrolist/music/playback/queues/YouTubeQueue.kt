@@ -11,7 +11,6 @@ import com.metrolist.innertube.models.WatchEndpoint
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.models.MediaMetadata
-import com.metrolist.music.models.toYTItem
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 
