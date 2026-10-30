@@ -34,7 +34,7 @@ class YouTubeQueue(
 
             // Keep a plain videoId endpoint plain. Radio callers use YouTube's normal,
             // personalized next/related queue instead of switching to an RDAMVM Music Mix.
-            loadedRadioIds.clear()
+            if (continuation == null) loadedRadioIds.clear()
 
             for (attempt in 0..maxRetries) {
                 try {
@@ -67,8 +67,10 @@ class YouTubeQueue(
                             items
                         }
                     val selectedIndex =
-                        if (isRadioRequest && selectedItemId != null) {
-                            normalizedItems.indexOfFirst { it.id == selectedItemId }.takeIf { it >= 0 }
+                        if (isRadioRequest) {
+                            selectedItemId?.let { id ->
+                                normalizedItems.indexOfFirst { it.id == id }.takeIf { it >= 0 }
+                            }
                         } else {
                             nextResult.currentIndex
                         }
