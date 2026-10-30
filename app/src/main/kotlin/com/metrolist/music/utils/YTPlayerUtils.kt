@@ -63,7 +63,7 @@ object YTPlayerUtils {
         }
     }
 
-    internal fun failedStreamClients(
+    fun failedStreamClients(
         videoId: String,
         nowMs: Long = System.currentTimeMillis(),
     ): Set<String> {
