@@ -26,10 +26,16 @@ class YouTubeUtilsTest {
     }
 
     @Test
-    fun `i_ytimg url is upgraded to maxresdefault when requesting large size`() {
+    fun `i_ytimg hqdefault remains unchanged when requesting large size`() {
         val url = "https://i.ytimg.com/vi/abc/hqdefault.jpg?sqp=-oaymwE"
+        assertEquals(url, url.resize(544, 544))
+    }
+
+    @Test
+    fun `legacy maxresdefault falls back to hqdefault`() {
+        val url = "https://i.ytimg.com/vi/abc/maxresdefault.jpg?sqp=-oaymwE"
         assertEquals(
-            "https://i.ytimg.com/vi/abc/maxresdefault.jpg?sqp=-oaymwE",
+            "https://i.ytimg.com/vi/abc/hqdefault.jpg?sqp=-oaymwE",
             url.resize(544, 544),
         )
     }
