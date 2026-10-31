@@ -26,8 +26,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import javax.inject.Inject
 
-private const val MAX_LYRICS_FETCH_MS = 25000L
-private const val PER_PROVIDER_TIMEOUT_MS = 8000L
+private const val MAX_LYRICS_FETCH_MS = 12000L
+private const val PER_PROVIDER_TIMEOUT_MS = 3000L
 private const val PROVIDER_NONE = ""
 
 class LyricsHelper
@@ -48,7 +48,7 @@ constructor(
     suspend fun getLyrics(mediaMetadata: MediaMetadata): LyricsWithProvider {
         currentLyricsJob?.cancel()
 
-        val cached = cache.get(mediaMetadata.id)?.firstOrNull()
+        val cached = cache.get(cacheKey(mediaMetadata.title, mediaMetadata.artists.joinToString { it.name }, mediaMetadata.album?.title, mediaMetadata.duration))?.firstOrNull()
         if (cached != null) {
             return LyricsWithProvider(cached.lyrics, cached.providerName)
         }
@@ -71,7 +71,7 @@ constructor(
             val cleanedTitle = LyricsUtils.cleanTitleForSearch(mediaMetadata.title)
             val enabledProviders = orderedProviders.filter { it.isEnabled(context) }
 
-            Timber.tag("LyricsHelper").d("Starting sequential fetch for: $cleanedTitle by ${mediaMetadata.artists.joinToString { it.name }}")
+            Timber.tag("LyricsHelper").d("Starting bounded provider fetch for: $cleanedTitle by ${mediaMetadata.artists.joinToString { it.name }}")
             Timber.tag("LyricsHelper").d("Enabled providers in order: ${enabledProviders.joinToString { it.name }}")
 
             for (provider in enabledProviders) {
@@ -121,7 +121,7 @@ constructor(
     ) {
         currentLyricsJob?.cancel()
 
-        val cacheKey = "$songArtists-$songTitle".replace(" ", "")
+        val cacheKey = cacheKey(songTitle, songArtists, album, duration)
         cache.get(cacheKey)?.let { results ->
             results.forEach { callback(it) }
             return
@@ -193,6 +193,10 @@ constructor(
 
         currentLyricsJob?.join()
     }
+
+    private fun cacheKey(title: String, artist: String, album: String?, duration: Int): String =
+        listOf(title, artist, album.orEmpty(), duration.toString())
+            .joinToString("|") { it.trim().lowercase().replace(Regex("\\s+"), " ") }
 
     private fun resolveLyricsProviders(preferences: androidx.datastore.preferences.core.Preferences): List<LyricsProvider> {
         val providerOrder = preferences[LyricsProviderOrderKey].orEmpty()
