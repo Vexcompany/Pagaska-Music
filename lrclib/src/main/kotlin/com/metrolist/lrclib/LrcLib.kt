@@ -86,6 +86,11 @@ object LrcLib {
         }.body<List<Track>>()
     }.getOrDefault(emptyList())
 
+    private fun normalizeMatch(value: String): String =
+        value.lowercase()
+            .replace(Regex("""\\([^)]*\\)|\\[[^]]*]"""), " ")
+            .replace(Regex("""[^\\p{L}\\p{N}]"""), "")
+
     private suspend fun queryLyrics(
         artist: String,
         title: String,
@@ -93,46 +98,16 @@ object LrcLib {
     ): List<Track> {
         val cleanedTitle = cleanTitle(title)
         val cleanedArtist = cleanArtist(artist)
-        
-        // Strategy 1: Search with cleaned title and artist
-        var results = queryLyricsWithParams(
+        if (cleanedTitle.isBlank() || cleanedArtist.isBlank()) return emptyList()
+
+        return queryLyricsWithParams(
             trackName = cleanedTitle,
             artistName = cleanedArtist,
-            albumName = album
-        ).filter { it.syncedLyrics != null || it.plainLyrics != null }
-        
-        if (results.isNotEmpty()) return results
-        
-        // Strategy 2: Search with cleaned title only (artist might be different)
-        results = queryLyricsWithParams(
-            trackName = cleanedTitle
-        ).filter { it.syncedLyrics != null || it.plainLyrics != null }
-        
-        if (results.isNotEmpty()) return results
-        
-        // Strategy 3: Use q parameter with combined search
-        results = queryLyricsWithParams(
-            query = "$cleanedArtist $cleanedTitle"
-        ).filter { it.syncedLyrics != null || it.plainLyrics != null }
-        
-        if (results.isNotEmpty()) return results
-        
-        // Strategy 4: Use q parameter with just title
-        results = queryLyricsWithParams(
-            query = cleanedTitle
-        ).filter { it.syncedLyrics != null || it.plainLyrics != null }
-        
-        if (results.isNotEmpty()) return results
-        
-        // Strategy 5: Try original title if different from cleaned
-        if (cleanedTitle != title.trim()) {
-            results = queryLyricsWithParams(
-                trackName = title.trim(),
-                artistName = artist.trim()
-            ).filter { it.syncedLyrics != null || it.plainLyrics != null }
+        ).filter { track ->
+            normalizeMatch(track.trackName) == normalizeMatch(cleanedTitle) &&
+                normalizeMatch(cleanArtist(track.artistName)) == normalizeMatch(cleanedArtist) &&
+                (track.syncedLyrics != null || track.plainLyrics != null)
         }
-        
-        return results
     }
 
     suspend fun getLyrics(
