@@ -15,6 +15,9 @@ import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.reportException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -74,26 +77,34 @@ constructor(
             Timber.tag("LyricsHelper").d("Starting bounded provider fetch for: $cleanedTitle by ${mediaMetadata.artists.joinToString { it.name }}")
             Timber.tag("LyricsHelper").d("Enabled providers in order: ${enabledProviders.joinToString { it.name }}")
 
-            for (provider in enabledProviders) {
-                Timber.tag("LyricsHelper").d("Trying provider: ${provider.name}")
-                val providerResult = try {
-                    withTimeoutOrNull(PER_PROVIDER_TIMEOUT_MS) {
-                        provider.getLyrics(
-                            context,
-                            mediaMetadata.id,
-                            cleanedTitle,
-                            mediaMetadata.artists.joinToString { it.name },
-                            mediaMetadata.duration,
-                            mediaMetadata.album?.title,
-                        )
+            val providerResults = coroutineScope {
+                enabledProviders.map { provider ->
+                    async {
+                        Timber.tag("LyricsHelper").d("Starting provider: ${provider.name}")
+                        val result = try {
+                            withTimeoutOrNull(PER_PROVIDER_TIMEOUT_MS) {
+                                provider.getLyrics(
+                                    context,
+                                    mediaMetadata.id,
+                                    cleanedTitle,
+                                    mediaMetadata.artists.joinToString { it.name },
+                                    mediaMetadata.duration,
+                                    mediaMetadata.album?.title,
+                                )
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Timber.tag("LyricsHelper").w("${provider.name} threw: ${e.message}")
+                            null
+                        }
+                        provider to result
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Timber.tag("LyricsHelper").w("${provider.name} threw: ${e.message}")
-                    null
-                }
+                }.awaitAll()
+            }
 
+            // Preserve configured provider priority even though requests run concurrently.
+            for ((provider, providerResult) in providerResults) {
                 if (providerResult != null && providerResult.isSuccess) {
                     Timber.tag("LyricsHelper").i("Got lyrics from ${provider.name}")
                     val filtered = LyricsUtils.filterLyricsCreditLines(providerResult.getOrNull()!!)
