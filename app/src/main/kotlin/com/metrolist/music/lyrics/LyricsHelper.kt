@@ -195,7 +195,7 @@ constructor(
     }
 
     private fun cacheKey(title: String, artist: String, album: String?, duration: Int): String =
-        listOf(title, artist, album.orEmpty(), duration.toString())
+        listOf(LyricsUtils.cleanTitleForSearch(title), artist, album.orEmpty(), duration.toString())
             .joinToString("|") { it.trim().lowercase().replace(Regex("\\s+"), " ") }
 
     private fun resolveLyricsProviders(preferences: androidx.datastore.preferences.core.Preferences): List<LyricsProvider> {
