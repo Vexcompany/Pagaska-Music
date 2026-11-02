@@ -88,8 +88,8 @@ object LrcLib {
 
     private fun normalizeMatch(value: String): String =
         value.lowercase()
-            .replace(Regex("""\\([^)]*\\)|\\[[^]]*]"""), " ")
-            .replace(Regex("""[^\\p{L}\\p{N}]"""), "")
+            .replace(Regex("""\([^)]*\)|\[[^]]*]"""), " ")
+            .replace(Regex("""[^\p{L}\p{N}]"""), "")
 
     private suspend fun queryLyrics(
         artist: String,
