@@ -88,6 +88,19 @@
                 <data android:pathPrefix="/listen" />
             </intent-filter>
 
+            <!-- Pagaska Music shared-song App Link -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="music.pagaska.my.id"
+                    android:pathPrefix="/song/" />
+            </intent-filter>
+
             <!-- Youtube filter -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
