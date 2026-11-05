@@ -1582,6 +1582,11 @@ class MainActivity : ComponentActivity() {
             else -> {
                 val videoId =
                     when {
+                        path == "song" &&
+                            uri.scheme.equals("https", ignoreCase = true) &&
+                            uri.host.equals("music.pagaska.my.id", ignoreCase = true) &&
+                            uri.pathSegments.size == 2 ->
+                            uri.pathSegments.getOrNull(1)?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }
                         path == "watch" -> uri.getQueryParameter("v")
                         uri.host == "youtu.be" -> uri.pathSegments.firstOrNull()
                         else -> null

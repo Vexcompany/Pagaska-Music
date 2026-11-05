@@ -337,7 +337,7 @@ fun YouTubeSongMenu(
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, song.shareLink)
+                                putExtra(Intent.EXTRA_TEXT, "https://music.pagaska.my.id/song/${song.id}")
                             }
                             context.startActivity(Intent.createChooser(intent, null))
                             onDismiss()
