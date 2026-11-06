@@ -163,8 +163,7 @@ constructor(
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
         scope.future(Dispatchers.IO) {
             try {
-            LibraryResult.ofItemList(
-                when (parentId) {
+            val children = when (parentId) {
                     MusicService.ROOT -> {
                         val sectionsRaw = context.dataStore.get(
                             AndroidAutoSectionsOrderKey,
@@ -442,9 +441,15 @@ constructor(
 
                             else -> emptyList()
                         }
-                },
-                params,
-            )
+                }
+
+            // Respect MediaLibrary pagination instead of returning the entire library
+            // in one Binder transaction. Clamp invalid page values defensively.
+            val safePage = page.coerceAtLeast(0)
+            val safePageSize = pageSize.coerceAtLeast(1)
+            val start = (safePage.toLong() * safePageSize).coerceAtMost(children.size.toLong()).toInt()
+            val pagedChildren = children.drop(start).take(safePageSize)
+            LibraryResult.ofItemList(pagedChildren, params)
             } catch (e: Exception) {
                 reportException(e)
                 LibraryResult.ofItemList(emptyList(), params)
@@ -568,7 +573,10 @@ constructor(
                     reportException(e)
                 }
                 
-                LibraryResult.ofItemList(searchResults, params)
+                val safePage = page.coerceAtLeast(0)
+                val safePageSize = pageSize.coerceAtLeast(1)
+                val start = (safePage.toLong() * safePageSize).coerceAtMost(searchResults.size.toLong()).toInt()
+                LibraryResult.ofItemList(searchResults.drop(start).take(safePageSize), params)
                 
             } catch (e: Exception) {
                 reportException(e)
