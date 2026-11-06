@@ -372,7 +372,7 @@ fun PlayerMenu(
                                 val clip =
                                     android.content.ClipData.newPlainText(
                                         "Song Link",
-                                        "https://music.youtube.com/watch?v=${mediaMetadata.id}",
+                                        "https://music.pagaska.my.id/song/${mediaMetadata.id}",
                                     )
                                 clipboard.setPrimaryClip(clip)
                                 android.widget.Toast
