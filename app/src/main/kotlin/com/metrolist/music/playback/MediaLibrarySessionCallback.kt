@@ -850,31 +850,19 @@ constructor(
         ).build()
 
     private fun Song.toMediaItem(path: String, isPlayable: Boolean = true, isBrowsable: Boolean = false): MediaItem {
-        val artworkBytes = try {
-            song.thumbnailUrl?.let { url ->
-                context.imageLoader.enqueue(
-                    coil3.request.ImageRequest.Builder(context)
-                        .data(url)
-                        .build()
-                )
-                context.imageLoader.diskCache?.openSnapshot(url)?.use { snapshot ->
-                    snapshot.data.toFile().readBytes()
-                }
-            }
-        } catch (e: Exception) {
-            null
-        }
-
         return MediaItem
             .Builder()
             .setMediaId("$path/$id")
             .setMediaMetadata(
-                 MediaMetadata
-                     .Builder()
-                     .setTitle(song.title)
-                     .setSubtitle(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                     .setArtist(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                     .setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_ILLUSTRATION)
+                MediaMetadata
+                    .Builder()
+                    .setTitle(song.title)
+                    .setSubtitle(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
+                    .setArtist(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
+                    // Let MediaSession's BitmapLoader resolve artwork asynchronously. Reading Coil's
+                    // disk cache immediately after enqueue() races the image request and often
+                    // produces null artwork on the first Android Auto browse.
+                    .setArtworkUri(song.thumbnailUrl?.toUri())
                     .setIsPlayable(isPlayable)
                     .setIsBrowsable(isBrowsable)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
