@@ -1623,6 +1623,56 @@ class MusicService :
         player.pause()
     }
 
+    /**
+     * Supplies the last known queue to MediaSession controllers requesting playback resumption.
+     * Prefer the live player state; fall back to the persisted queue when the player has not
+     * restored it yet (for example after the service process was recreated).
+     */
+    suspend fun getPlaybackResumption(): MediaSession.MediaItemsWithStartPosition {
+        playerInitialized.first { it }
+
+        if (player.mediaItemCount > 0) {
+            val items = player.mediaItems
+            val index = player.currentMediaItemIndex.coerceIn(0, items.lastIndex)
+            return MediaSession.MediaItemsWithStartPosition(
+                items,
+                index,
+                player.currentPosition.coerceAtLeast(0L),
+            )
+        }
+
+        if (startupPrefs?.get(PersistentQueueKey) == false) {
+            return MediaSession.MediaItemsWithStartPosition(emptyList(), 0, C.TIME_UNSET)
+        }
+
+        val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
+        if (!queueFile.exists()) {
+            return MediaSession.MediaItemsWithStartPosition(emptyList(), 0, C.TIME_UNSET)
+        }
+
+        val persistedQueue = withContext(Dispatchers.IO) {
+            runCatching {
+                queueFile.inputStream().use { input ->
+                    ObjectInputStream(input).use { it.readObject() as PersistQueue }
+                }
+            }.onFailure { error ->
+                Timber.tag(TAG).w(error, "Failed to read persisted queue for playback resumption")
+            }.getOrNull()
+        } ?: return MediaSession.MediaItemsWithStartPosition(emptyList(), 0, C.TIME_UNSET)
+
+        val status = persistedQueue.toQueue().getInitialStatus()
+        if (status.items.isEmpty()) {
+            return MediaSession.MediaItemsWithStartPosition(emptyList(), 0, C.TIME_UNSET)
+        }
+
+        val index = status.mediaItemIndex.coerceIn(0, status.items.lastIndex)
+        return MediaSession.MediaItemsWithStartPosition(
+            status.items,
+            index,
+            status.position.coerceAtLeast(0L),
+        )
+    }
+
     private fun updateNotification(isLiked: Boolean? = currentSong.value?.song?.let { if (it.isEpisode) it.inLibrary != null else it.liked }) {
         mediaSession?.setCustomLayout(
             listOf(
