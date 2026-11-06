@@ -462,7 +462,11 @@ constructor(
     ): ListenableFuture<LibraryResult<MediaItem>> =
         scope.future(Dispatchers.IO) {
             try {
-                database.song(mediaId).first()?.toMediaItem()?.let {
+                // Library child IDs are namespaced (for example "song/VIDEO_ID").
+                // Resolve the underlying database ID instead of querying with the full
+                // browsable-library path.
+                val songId = mediaId.substringAfterLast('/')
+                database.song(songId).first()?.toMediaItem(mediaId.substringBeforeLast('/', ""))?.let {
                     LibraryResult.ofItem(it, null)
                 } ?: LibraryResult.ofError(SessionError.ERROR_UNKNOWN)
             } catch (e: Exception) {
@@ -522,7 +526,7 @@ constructor(
                     searchResults.add(song.toMediaItem(
                         path = "${MusicService.SEARCH}/$query",
                         isPlayable = true,
-                        isBrowsable = true
+                        isBrowsable = false
                     ))
                 }
 
@@ -561,7 +565,7 @@ constructor(
                                         .setArtist(songItem.artists.joinToArtistString(getArtistSeparator(context)) { it.name })
                                         .setArtworkUri(songItem.thumbnail.toUri())
                                         .setIsPlayable(true)
-                                        .setIsBrowsable(true)
+                                        .setIsBrowsable(false)
                                         .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                                         .build()
                                 )
