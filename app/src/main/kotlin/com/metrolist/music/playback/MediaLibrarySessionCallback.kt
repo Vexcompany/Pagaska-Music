@@ -126,9 +126,9 @@ constructor(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo
     ): ListenableFuture<MediaItemsWithStartPosition> =
-        Futures.immediateFuture(
-            MediaItemsWithStartPosition(emptyList(), 0, C.TIME_UNSET),
-        )
+        scope.future(Dispatchers.IO) {
+            service.getPlaybackResumption()
+        }
 
     override fun onGetLibraryRoot(
         session: MediaLibrarySession,
