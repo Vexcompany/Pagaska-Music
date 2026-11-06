@@ -23,7 +23,6 @@ import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
-import coil3.imageLoader
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -463,7 +462,11 @@ constructor(
     ): ListenableFuture<LibraryResult<MediaItem>> =
         scope.future(Dispatchers.IO) {
             try {
-                database.song(mediaId).first()?.toMediaItem()?.let {
+                // Library child IDs are namespaced (for example "song/VIDEO_ID").
+                // Resolve the underlying database ID instead of querying with the full
+                // browsable-library path.
+                val songId = mediaId.substringAfterLast('/')
+                database.song(songId).first()?.toMediaItem(mediaId.substringBeforeLast('/', ""))?.let {
                     LibraryResult.ofItem(it, null)
                 } ?: LibraryResult.ofError(SessionError.ERROR_UNKNOWN)
             } catch (e: Exception) {
@@ -523,7 +526,7 @@ constructor(
                     searchResults.add(song.toMediaItem(
                         path = "${MusicService.SEARCH}/$query",
                         isPlayable = true,
-                        isBrowsable = true
+                        isBrowsable = false
                     ))
                 }
 
@@ -562,7 +565,7 @@ constructor(
                                         .setArtist(songItem.artists.joinToArtistString(getArtistSeparator(context)) { it.name })
                                         .setArtworkUri(songItem.thumbnail.toUri())
                                         .setIsPlayable(true)
-                                        .setIsBrowsable(true)
+                                        .setIsBrowsable(false)
                                         .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                                         .build()
                                 )
@@ -850,31 +853,19 @@ constructor(
         ).build()
 
     private fun Song.toMediaItem(path: String, isPlayable: Boolean = true, isBrowsable: Boolean = false): MediaItem {
-        val artworkBytes = try {
-            song.thumbnailUrl?.let { url ->
-                context.imageLoader.enqueue(
-                    coil3.request.ImageRequest.Builder(context)
-                        .data(url)
-                        .build()
-                )
-                context.imageLoader.diskCache?.openSnapshot(url)?.use { snapshot ->
-                    snapshot.data.toFile().readBytes()
-                }
-            }
-        } catch (e: Exception) {
-            null
-        }
-
         return MediaItem
             .Builder()
             .setMediaId("$path/$id")
             .setMediaMetadata(
-                 MediaMetadata
-                     .Builder()
-                     .setTitle(song.title)
-                     .setSubtitle(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                     .setArtist(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                     .setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_ILLUSTRATION)
+                MediaMetadata
+                    .Builder()
+                    .setTitle(song.title)
+                    .setSubtitle(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
+                    .setArtist(artists.joinToArtistString(getArtistSeparator(context)) { it.name })
+                    // Let MediaSession's BitmapLoader resolve artwork asynchronously. Reading Coil's
+                    // disk cache immediately after enqueue() races the image request and often
+                    // produces null artwork on the first Android Auto browse.
+                    .setArtworkUri(song.thumbnailUrl?.toUri())
                     .setIsPlayable(isPlayable)
                     .setIsBrowsable(isBrowsable)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
