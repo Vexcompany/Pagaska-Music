@@ -89,8 +89,13 @@ class CoilBitmapLoader(
         }
 
     override fun loadBitmapFromMetadata(metadata: MediaMetadata): ListenableFuture<Bitmap>? {
+        // Prefer the explicit artwork URI from the MediaItem. It is the app's
+        // canonical high-resolution artwork source; embedded stream artworkData
+        // can be a smaller thumbnail and otherwise wins before the URI is loaded.
+        val artworkUri = metadata.artworkUri ?: metadata.extras?.getString("artwork_uri")?.toUri()
+        if (artworkUri != null) return loadBitmap(artworkUri)
+
         metadata.artworkData?.let { return decodeBitmap(it) }
-        val artworkUri = metadata.artworkUri ?: metadata.extras?.getString("artwork_uri")?.toUri() ?: return null
-        return loadBitmap(artworkUri)
+        return null
     }
 }
