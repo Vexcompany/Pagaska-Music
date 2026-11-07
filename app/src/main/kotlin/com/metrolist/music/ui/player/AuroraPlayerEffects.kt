@@ -48,19 +48,16 @@ fun AuroraPlayerEffects(
     if (!enabled) return
 
     val transition = rememberInfiniteTransition(label = "auroraAmbient")
-    val phase by transition.animateFloat(
+    val animatedPhase by transition.animateFloat(
         initialValue = 0f,
-        targetValue = if (isPlaying) (2.0 * PI).toFloat() else 0f,
-        animationSpec = if (isPlaying) {
-            infiniteRepeatable(
-                animation = tween(durationMillis = 12000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            )
-        } else {
-            tween(durationMillis = 0)
-        },
+        targetValue = (2.0 * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 12000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
         label = "auroraPhase",
     )
+    val phase = if (isPlaying) animatedPhase else 0f
 
     var tapOrigin by remember { mutableStateOf<Offset?>(null) }
     val rippleProgress = remember { Animatable(1f) }
