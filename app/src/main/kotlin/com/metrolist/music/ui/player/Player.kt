@@ -918,6 +918,13 @@ fun BottomSheetPlayer(
                         PlayerBackgroundStyle.DEFAULT
                     }
                 }
+
+                AuroraPlayerEffects(
+                    modifier = Modifier.alpha(backgroundAlpha),
+                    accent = gradientColors.firstOrNull() ?: MaterialTheme.colorScheme.primary,
+                    enabled = isFullScreen,
+                    isPlaying = effectiveIsPlaying,
+                )
             }
         },
         onDismiss =
