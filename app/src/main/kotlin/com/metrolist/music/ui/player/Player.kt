@@ -919,12 +919,6 @@ fun BottomSheetPlayer(
                     }
                 }
 
-                AuroraPlayerEffects(
-                    modifier = Modifier.alpha(backgroundAlpha),
-                    accent = gradientColors.firstOrNull() ?: MaterialTheme.colorScheme.primary,
-                    enabled = isFullScreen,
-                    isPlaying = effectiveIsPlaying,
-                )
             }
         },
         onDismiss =
@@ -945,6 +939,13 @@ fun BottomSheetPlayer(
             )
         },
     ) {
+        // Render Aurora above the background but below the player controls.
+        AuroraPlayerEffects(
+            modifier = Modifier.fillMaxSize().alpha(backgroundAlpha),
+            accent = gradientColors.firstOrNull() ?: MaterialTheme.colorScheme.primary,
+            enabled = isFullScreen,
+            isPlaying = effectiveIsPlaying,
+        )
         val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
             val playPauseRoundness by animateDpAsState(
                 targetValue = if (isPlaying) 24.dp else 36.dp,
