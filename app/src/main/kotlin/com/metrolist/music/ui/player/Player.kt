@@ -923,6 +923,7 @@ fun BottomSheetPlayer(
                     modifier = Modifier.alpha(backgroundAlpha),
                     accent = gradientColors.firstOrNull() ?: MaterialTheme.colorScheme.primary,
                     enabled = isFullScreen,
+                    isPlaying = effectiveIsPlaying,
                 )
             }
         },
