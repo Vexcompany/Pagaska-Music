@@ -43,17 +43,22 @@ fun AuroraPlayerEffects(
     modifier: Modifier = Modifier,
     accent: Color,
     enabled: Boolean,
+    isPlaying: Boolean,
 ) {
     if (!enabled) return
 
     val transition = rememberInfiniteTransition(label = "auroraAmbient")
     val phase by transition.animateFloat(
         initialValue = 0f,
-        targetValue = (2.0 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
+        targetValue = if (isPlaying) (2.0 * PI).toFloat() else 0f,
+        animationSpec = if (isPlaying) {
+            infiniteRepeatable(
+                animation = tween(durationMillis = 12000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            )
+        } else {
+            tween(durationMillis = 0)
+        },
         label = "auroraPhase",
     )
 
