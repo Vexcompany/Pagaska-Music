@@ -79,12 +79,12 @@ fun AuroraPlayerEffects(
     ) {
         val w = size.width
         val h = size.height
-        val maxRadius = maxOf(w, h) * 0.78f
+        val maxRadius = maxOf(w, h) * 0.90f
 
         // Two slow, very soft color fields keep the artwork atmosphere alive.
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(accent.copy(alpha = 0.17f), accent.copy(alpha = 0f)),
+                colors = listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0f)),
                 center = Offset(w * (0.24f + 0.035f * sin(phase)), h * 0.28f),
                 radius = maxRadius,
             ),
@@ -93,7 +93,7 @@ fun AuroraPlayerEffects(
         )
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(accent.copy(alpha = 0.11f), Color.Transparent),
+                colors = listOf(accent.copy(alpha = 0.18f), Color.Transparent),
                 center = Offset(w * 0.78f, h * (0.72f + 0.04f * cos(phase))),
                 radius = maxRadius * 0.82f,
             ),
@@ -102,15 +102,15 @@ fun AuroraPlayerEffects(
         )
 
         // A small set of slow-moving dust particles; no audio polling required.
-        repeat(26) { index ->
-            val angle = index * (2.0 * PI / 26.0) + phase * (if (index % 2 == 0) 0.16f else -0.12f)
+        repeat(34) { index ->
+            val angle = index * (2.0 * PI / 34.0) + phase * (if (index % 2 == 0) 0.16f else -0.12f)
             val orbit = 0.18f + (index % 5) * 0.105f
             val x = w * (0.5f + cos(angle).toFloat() * orbit)
             val y = h * (0.5f + sin(angle).toFloat() * orbit * 0.82f)
             val pulse = 0.45f + 0.35f * sin(phase + index).toFloat().let { (it + 1f) / 2f }
             drawCircle(
-                color = accent.copy(alpha = 0.10f * pulse),
-                radius = 1.1f + (index % 3) * 0.45f,
+                color = accent.copy(alpha = 0.19f * pulse),
+                radius = 1.8f + (index % 3) * 0.7f,
                 center = Offset(x, y),
             )
         }

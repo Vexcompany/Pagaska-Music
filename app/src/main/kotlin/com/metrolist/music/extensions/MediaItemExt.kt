@@ -70,7 +70,7 @@ fun MediaMetadata.toMediaItem() = MediaItem.Builder()
     .setMediaId(id)
     .setUri(id)
     .setCustomCacheKey(id)
-    .setTag(this)
+    .setTag(copy(thumbnailUrl = thumbnailUrl?.resize(1080, 1080)))
     .setMediaMetadata(
         androidx.media3.common.MediaMetadata.Builder()
             .setTitle(title)

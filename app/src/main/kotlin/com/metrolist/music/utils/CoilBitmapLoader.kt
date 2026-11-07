@@ -46,51 +46,62 @@ class CoilBitmapLoader(
         }
     }
 
+    private fun decodeBitmapOrNull(data: ByteArray): Bitmap? =
+        try {
+            BitmapFactory.decodeByteArray(data, 0, data.size)?.createIndependentCopy()
+        } catch (e: Exception) {
+            Timber.tag("CoilBitmapLoader").w(e, "Failed to decode bitmap data")
+            null
+        }
+
     override fun decodeBitmap(data: ByteArray): ListenableFuture<Bitmap> =
         scope.future(Dispatchers.IO) {
-            try {
-                val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
-                bitmap?.createIndependentCopy() ?: createFallbackBitmap()
-            } catch (e: Exception) {
-                Timber.tag("CoilBitmapLoader").w(e, "Failed to decode bitmap data")
-                createFallbackBitmap()
+            decodeBitmapOrNull(data) ?: createFallbackBitmap()
+        }
+
+    private suspend fun loadBitmapOrNull(uri: Uri): Bitmap? =
+        try {
+            val request =
+                ImageRequest
+                    .Builder(context)
+                    .data(uri)
+                    .allowHardware(false)
+                    .build()
+
+            when (val result = context.imageLoader.execute(request)) {
+                is ErrorResult -> null
+                is SuccessResult -> {
+                    try {
+                        result.image.toBitmap().createIndependentCopy()
+                    } catch (e: Exception) {
+                        Timber.tag("CoilBitmapLoader").w(e, "Failed to convert image to bitmap")
+                        null
+                    }
+                }
             }
+        } catch (e: Exception) {
+            Timber.tag("CoilBitmapLoader").w(e, "Failed to load bitmap from uri")
+            null
         }
 
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> =
         scope.future(Dispatchers.IO) {
-            try {
-                val request =
-                    ImageRequest
-                        .Builder(context)
-                        .data(uri)
-                        .allowHardware(false)
-                        .build()
-
-                when (val result = context.imageLoader.execute(request)) {
-                    is ErrorResult -> {
-                        createFallbackBitmap()
-                    }
-
-                    is SuccessResult -> {
-                        try {
-                            val bitmap = result.image.toBitmap()
-                            bitmap.createIndependentCopy()
-                        } catch (e: Exception) {
-                            Timber.tag("CoilBitmapLoader").w(e, "Failed to convert image to bitmap")
-                            createFallbackBitmap()
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.tag("CoilBitmapLoader").w(e, "Failed to load bitmap from uri")
-                createFallbackBitmap()
-            }
+            loadBitmapOrNull(uri) ?: createFallbackBitmap()
         }
 
     override fun loadBitmapFromMetadata(metadata: MediaMetadata): ListenableFuture<Bitmap>? {
-        metadata.artworkData?.let { return decodeBitmap(it) }
-        val artworkUri = metadata.artworkUri ?: metadata.extras?.getString("artwork_uri")?.toUri() ?: return null
-        return loadBitmap(artworkUri)
+        // Prefer the explicit artwork URI from the MediaItem. It is the app's
+        // canonical high-resolution artwork source. If that request fails,
+        // fall back to embedded artworkData instead of a blank placeholder.
+        val artworkUri = metadata.artworkUri ?: metadata.extras?.getString("artwork_uri")?.toUri()
+        val artworkData = metadata.artworkData
+        if (artworkUri == null && artworkData == null) return null
+
+        return scope.future(Dispatchers.IO) {
+            if (artworkUri != null) {
+                loadBitmapOrNull(artworkUri)?.let { return@future it }
+            }
+            artworkData?.let { decodeBitmapOrNull(it) } ?: createFallbackBitmap()
+        }
     }
 }
