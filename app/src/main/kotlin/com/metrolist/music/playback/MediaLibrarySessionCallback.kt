@@ -46,6 +46,7 @@ import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
 import com.metrolist.music.utils.getArtistSeparator
 import com.metrolist.music.utils.joinToArtistString
+import com.metrolist.music.ui.utils.resize
 import com.metrolist.music.utils.reportException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -417,19 +418,9 @@ constructor(
                                                     .build()
                                             ).build()
                                     ) + songs.map { songItem ->
-                                        MediaItem.Builder()
+                                        songItem.toMediaItem()
+                                            .buildUpon()
                                             .setMediaId("$parentId/${songItem.id}")
-                                            .setMediaMetadata(
-                                                MediaMetadata.Builder()
-                                                    .setTitle(songItem.title)
-                                                    .setSubtitle(songItem.artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                                                    .setArtist(songItem.artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                                                    .setArtworkUri(songItem.thumbnail.toUri())
-                                                    .setIsPlayable(true)
-                                                    .setIsBrowsable(false)
-                                                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-                                                    .build()
-                                            )
                                             .build()
                                     }
                                 } catch (e: Exception) {
@@ -556,19 +547,9 @@ constructor(
                         }
                         
                         searchResults.add(
-                            MediaItem.Builder()
+                            songItem.toMediaItem()
+                                .buildUpon()
                                 .setMediaId("${MusicService.SEARCH}/$query/${songItem.id}")
-                                .setMediaMetadata(
-                                    MediaMetadata.Builder()
-                                        .setTitle(songItem.title)
-                                        .setSubtitle(songItem.artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                                        .setArtist(songItem.artists.joinToArtistString(getArtistSeparator(context)) { it.name })
-                                        .setArtworkUri(songItem.thumbnail.toUri())
-                                        .setIsPlayable(true)
-                                        .setIsBrowsable(false)
-                                        .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-                                        .build()
-                                )
                                 .build()
                         )
                     }
@@ -865,7 +846,7 @@ constructor(
                     // Let MediaSession's BitmapLoader resolve artwork asynchronously. Reading Coil's
                     // disk cache immediately after enqueue() races the image request and often
                     // produces null artwork on the first Android Auto browse.
-                    .setArtworkUri(song.thumbnailUrl?.toUri())
+                    .setArtworkUri(song.thumbnailUrl?.resize(1080, 1080)?.toUri())
                     .setIsPlayable(isPlayable)
                     .setIsBrowsable(isBrowsable)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
