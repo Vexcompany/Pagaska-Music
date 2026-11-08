@@ -53,9 +53,15 @@ constructor(
 
     private val _onlinePlaylist = MutableStateFlow<PlaylistItem?>(null)
     val onlinePlaylist: StateFlow<PlaylistItem?> = _onlinePlaylist
+
+    // Keep the persisted playlist order separate from the user's display-sort preference.
+    val playlistSongsInCustomOrder: StateFlow<List<PlaylistSong>> =
+        database.playlistSongs(playlistId)
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     val playlistSongs: StateFlow<List<PlaylistSong>> =
         combine(
-            database.playlistSongs(playlistId),
+            playlistSongsInCustomOrder,
             context.dataStore.data
                 .map {
                     Triple(
