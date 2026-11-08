@@ -8,16 +8,16 @@ class PlaylistImportParserTest {
     @Test
     fun `csv handles quoted commas escaped quotes and CRLF`() {
         val rows = PlaylistImportParser.parseCsv(
-            "Title,Artist,Album\\r\\n\\\"Song, One\\\",\\\"A \\\\"Quoted\\\\" Artist\\\",Album\\r\\n",
+            "Title,Artist,Album\r\n\"Song, One\",\"A \"\"Quoted\"\" Artist\",Album\r\n",
         )
         assertEquals(listOf("Title", "Artist", "Album"), rows[0])
-        assertEquals(listOf("Song, One", "A \\"Quoted\\" Artist", "Album"), rows[1])
+        assertEquals(listOf("Song, One", "A \"Quoted\" Artist", "Album"), rows[1])
     }
 
     @Test
     fun `csv import keeps source order and extracts youtube id`() {
         val entries = PlaylistImportParser.csvToEntries(
-            "Title,Artist,URL\\nSecond,B,https://youtu.be/abcdefghijk\\nFirst,A,https://youtube.com/watch?v=12345678901",
+            "Title,Artist,URL\nSecond,B,https://youtu.be/abcdefghijk\nFirst,A,https://youtube.com/watch?v=12345678901",
             hasHeader = true,
             titleColumn = 0,
             artistColumn = 1,
@@ -30,7 +30,7 @@ class PlaylistImportParserTest {
 
     @Test
     fun `csv skips blank titles and permits no optional columns`() {
-        val entries = PlaylistImportParser.csvToEntries(" A \\n\\nB", false, titleColumn = 0)
+        val entries = PlaylistImportParser.csvToEntries(" A \n\nB", false, titleColumn = 0)
         assertEquals(listOf("A", "B"), entries.map { it.title })
         assertNull(entries.first().sourceId)
     }
@@ -38,7 +38,7 @@ class PlaylistImportParserTest {
     @Test
     fun `m3u handles extinf youtube urls and pagaska marker`() {
         val entries = PlaylistImportParser.parseM3u(
-            "#EXTM3U\\n#EXTINF:245,Artist - Song One\\nhttps://youtube.com/watch?v=abcdefghijk\\n#EXTINF:0,Artist Two - Song Two\\n#YTM:12345678901\\n",
+            "#EXTM3U\n#EXTINF:245,Artist - Song One\nhttps://youtube.com/watch?v=abcdefghijk\n#EXTINF:0,Artist Two - Song Two\n#YTM:12345678901\n",
         )
         assertEquals(2, entries.size)
         assertEquals(listOf(0, 1), entries.map { it.sourceIndex })
@@ -53,7 +53,7 @@ class PlaylistImportParserTest {
 
     @Test
     fun `m3u tolerates entries without extinf`() {
-        val entries = PlaylistImportParser.parseM3u("https://youtu.be/abcdefghijk\\n")
+        val entries = PlaylistImportParser.parseM3u("https://youtu.be/abcdefghijk\n")
         assertEquals(1, entries.size)
         assertEquals("abcdefghijk", entries[0].sourceId)
     }
