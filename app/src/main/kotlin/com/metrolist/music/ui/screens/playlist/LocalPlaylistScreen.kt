@@ -176,6 +176,7 @@ fun LocalPlaylistScreen(
 
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val songs by viewModel.playlistSongs.collectAsStateWithLifecycle()
+    val customOrderSongs by viewModel.playlistSongsInCustomOrder.collectAsStateWithLifecycle()
     val onlinePlaylist by viewModel.onlinePlaylist.collectAsStateWithLifecycle()
     val mutableSongs = remember { mutableStateListOf<PlaylistSong>() }
     val playlistLength =
@@ -197,7 +198,6 @@ fun LocalPlaylistScreen(
     val coroutineScope = rememberCoroutineScope()
     val syncUtils = LocalSyncUtils.current
     val snackbarHostState = remember { SnackbarHostState() }
-
     var isSearching by rememberSaveable { mutableStateOf(false) }
 
     var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -397,8 +397,7 @@ fun LocalPlaylistScreen(
                         showDeletePlaylistDialog = false
                     },
                 ) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
+                    Text(text = stringResource(android.R.string.cancel))                }
                 TextButton(
                     onClick = {
                         showDeletePlaylistDialog = false
@@ -498,6 +497,7 @@ fun LocalPlaylistScreen(
                             LocalPlaylistHeader(
                                 playlist = playlist,
                                 songs = songs,
+                                customOrderSongs = customOrderSongs,
                                 onlinePlaylist = onlinePlaylist,
                                 onShowEditDialog = { showEditDialog = true },
                                 onShowRemoveDownloadDialog = { showRemoveDownloadDialog = true },
@@ -597,8 +597,7 @@ fun LocalPlaylistScreen(
                                     dv == SwipeToDismissBoxValue.EndToStart
                             )
                         ) {
-                            processedDismiss = true
-                            deleteFromPlaylist()
+                            processedDismiss = true                            deleteFromPlaylist()
                         }
                         if (dv == SwipeToDismissBoxValue.Settled) {
                             processedDismiss = false
@@ -671,7 +670,7 @@ fun LocalPlaylistScreen(
                                                     ListQueue(
                                                         title = playlist!!.playlist.name,
                                                         items = viewModel.playlistSongsInCustomOrder.value.map { it.song.toMediaItem() },
-                                                        startIndex = customOrderSongs.indexOfFirst { it.map.id == song.map.id },
+                                                        startIndex = viewModel.playlistSongsInCustomOrder.value.indexOfFirst { it.map.id == song.map.id },
                                                     ),
                                                 )
                                             }
@@ -797,8 +796,7 @@ fun LocalPlaylistScreen(
                             painter = painterResource(R.drawable.arrow_back),
                             contentDescription = null,
                         )
-                    }
-                }
+                    }                }
             },
             actions = {
                 if (inSelectMode) {
@@ -865,6 +863,7 @@ fun LocalPlaylistScreen(
 fun LocalPlaylistHeader(
     playlist: Playlist,
     songs: List<PlaylistSong>,
+    customOrderSongs: List<PlaylistSong>,
     onlinePlaylist: PlaylistItem?,
     onShowEditDialog: () -> Unit,
     onShowRemoveDownloadDialog: () -> Unit,
@@ -997,7 +996,6 @@ fun LocalPlaylistHeader(
             }
         }
     }
-
     LaunchedEffect(songs) {
         if (songs.isEmpty()) return@LaunchedEffect
         downloadUtil.downloads.collect { downloads ->
@@ -1197,8 +1195,7 @@ fun LocalPlaylistHeader(
                                                         ),
                                                     )
                                                 },
-                                                onRemove = {
-                                                    when {
+                                                onRemove = {                                                    when {
                                                         playlist.playlist.browseId == null -> {
                                                             overrideThumbnail.value = null
                                                             database.query {
@@ -1331,7 +1328,7 @@ fun LocalPlaylistHeader(
                     playerConnection.playQueue(
                         ListQueue(
                             title = playlist.playlist.name,
-                            items = viewModel.playlistSongsInCustomOrder.value.shuffled().map { it.song.toMediaItem() },
+                            items = customOrderSongs.shuffled().map { it.song.toMediaItem() },
                         ),
                     )
                 },
@@ -1397,8 +1394,7 @@ fun LocalPlaylistHeader(
                                             .getOrNull() ?: return@launch
                                     database.transaction {
                                         clearPlaylist(playlist.id)
-                                        val songIds = playlistPage.songs
-                                            .map(SongItem::toMediaMetadata)
+                                        val songIds = playlistPage.songs                                            .map(SongItem::toMediaMetadata)
                                             .onEach(::insert)
                                             .map { it.id to it.setVideoId }
                                         addSongsToPlaylist(playlist, songIds)
@@ -1508,10 +1504,3 @@ private fun MetadataChip(
 
 fun uriToByteArray(
     context: Context,
-    uri: Uri,
-): ByteArray? =
-    try {
-        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-    } catch (_: SecurityException) {
-        null
-    }
