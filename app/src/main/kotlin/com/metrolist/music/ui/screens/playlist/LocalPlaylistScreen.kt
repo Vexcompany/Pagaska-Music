@@ -176,6 +176,7 @@ fun LocalPlaylistScreen(
 
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val songs by viewModel.playlistSongs.collectAsStateWithLifecycle()
+    val customOrderSongs by viewModel.playlistSongsInCustomOrder.collectAsStateWithLifecycle()
     val onlinePlaylist by viewModel.onlinePlaylist.collectAsStateWithLifecycle()
     val mutableSongs = remember { mutableStateListOf<PlaylistSong>() }
     val playlistLength =
@@ -670,8 +671,8 @@ fun LocalPlaylistScreen(
                                                 playerConnection.playQueue(
                                                     ListQueue(
                                                         title = playlist!!.playlist.name,
-                                                        items = songs.map { it.song.toMediaItem() },
-                                                        startIndex = songs.indexOfFirst { it.map.id == song.map.id },
+                                                        items = customOrderSongs.map { it.song.toMediaItem() },
+                                                        startIndex = customOrderSongs.indexOfFirst { it.map.id == song.map.id },
                                                     ),
                                                 )
                                             }
@@ -1331,7 +1332,7 @@ fun LocalPlaylistHeader(
                     playerConnection.playQueue(
                         ListQueue(
                             title = playlist.playlist.name,
-                            items = songs.shuffled().map { it.song.toMediaItem() },
+                            items = customOrderSongs.shuffled().map { it.song.toMediaItem() },
                         ),
                     )
                 },
@@ -1357,7 +1358,7 @@ fun LocalPlaylistHeader(
                     playerConnection.playQueue(
                         ListQueue(
                             title = playlist.playlist.name,
-                            items = songs.map { it.song.toMediaItem() },
+                            items = customOrderSongs.map { it.song.toMediaItem() },
                         ),
                     )
                 },
@@ -1448,7 +1449,7 @@ fun LocalPlaylistHeader(
                             },
                             onQueue = {
                                 playerConnection.addToQueue(
-                                    items = songs.map { it.song.toMediaItem() },
+                                    items = customOrderSongs.map { it.song.toMediaItem() },
                                 )
                             },
                             onDismiss = { menuState.dismiss() },
