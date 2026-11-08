@@ -95,10 +95,10 @@ object PlaylistImportParser {
             val url = pendingUrl
             val id = extractYouTubeId(url) ?: url?.takeIf { it.startsWith("#YTM:") }?.substringAfter("#YTM:")
             val parsed = splitArtistTitle(titleLine)
-            if (titleLine.isNotBlank() || !id.isNullOrBlank()) {
+            if (titleLine.isNotBlank() || !url.isNullOrBlank()) {
                 result += PlaylistImportEntry(
                     sourceIndex = result.size,
-                    title = parsed.second.ifBlank { id.orEmpty() },
+                    title = parsed.second.ifBlank { id ?: url.orEmpty() },
                     artist = parsed.first,
                     durationSeconds = pendingDuration,
                     sourceUrl = url?.takeUnless { it.startsWith("#YTM:") },
