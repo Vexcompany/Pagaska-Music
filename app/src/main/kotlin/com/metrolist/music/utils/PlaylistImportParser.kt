@@ -23,16 +23,17 @@ data class ParsedCsv(
 object PlaylistImportParser {
     /** RFC-4180-style CSV parser supporting escaped quotes, commas and multiline cells. */
     fun parseCsv(input: String): List<List<String>> {
+        val content = input.removePrefix("\uFEFF")
         val rows = mutableListOf<List<String>>()
         val row = mutableListOf<String>()
         val cell = StringBuilder()
         var quoted = false
         var i = 0
 
-        while (i < input.length) {
-            val c = input[i]
+        while (i < content.length) {
+            val c = content[i]
             when {
-                quoted && c == '"' && i + 1 < input.length && input[i + 1] == '"' -> {
+                quoted && c == '"' && i + 1 < content.length && content[i + 1] == '"' -> {
                     cell.append('"')
                     i++
                 }
@@ -46,7 +47,7 @@ object PlaylistImportParser {
                     cell.setLength(0)
                     if (row.any { it.isNotEmpty() }) rows += row.toList()
                     row.clear()
-                    if (c == '\r' && i + 1 < input.length && input[i + 1] == '\n') i++
+                    if (c == '\r' && i + 1 < content.length && content[i + 1] == '\n') i++
                 }
                 else -> cell.append(c)
             }
@@ -67,13 +68,13 @@ object PlaylistImportParser {
     ): List<PlaylistImportEntry> {
         require(titleColumn >= 0) { "Title column must be selected" }
         val rows = parseCsv(input)
-        val dataRows = if (hasHeader) rows.drop(1) else rows
-        return dataRows.mapIndexedNotNull { index, row ->
+        val headerOffset = if (hasHeader) 1 else 0
+        val dataRows = rows.drop(headerOffset)
+        return dataRows.mapIndexed { index, row ->
             val title = row.getOrNull(titleColumn)?.trim().orEmpty()
-            if (title.isBlank()) return@mapIndexedNotNull null
             val url = row.getOrNull(urlColumn)?.trim()?.takeIf(String::isNotEmpty)
             PlaylistImportEntry(
-                sourceIndex = index,
+                sourceIndex = index + headerOffset,
                 title = title,
                 artist = row.getOrNull(artistColumn)?.trim().orEmpty(),
                 album = row.getOrNull(albumColumn)?.trim().orEmpty(),
@@ -110,9 +111,13 @@ object PlaylistImportParser {
             pendingUrl = null
         }
 
-        input.lineSequence().map(String::trim).filter(String::isNotEmpty).forEach { line ->
+        input.removePrefix("\uFEFF").lineSequence().map(String::trim).filter(String::isNotEmpty).forEach { line ->
             when {
                 line.startsWith("#EXTINF:", ignoreCase = true) -> {
+                    // Do not silently overwrite metadata if a malformed file omits its URL.
+                    if (pendingTitle.isNotBlank() || pendingDuration != null || pendingUrl != null) {
+                        addEntry()
+                    }
                     val payload = line.substringAfter(':')
                     val durationText = payload.substringBefore(',')
                     pendingDuration = durationText.toLongOrNull()?.takeIf { it >= 0 }
@@ -129,7 +134,7 @@ object PlaylistImportParser {
                 }
             }
         }
-        if (pendingTitle.isNotBlank() || pendingUrl != null) addEntry()
+        if (pendingTitle.isNotBlank() || pendingDuration != null || pendingUrl != null) addEntry()
         return result
     }
 
