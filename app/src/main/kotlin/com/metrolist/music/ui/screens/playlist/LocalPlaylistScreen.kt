@@ -176,7 +176,6 @@ fun LocalPlaylistScreen(
 
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val songs by viewModel.playlistSongs.collectAsStateWithLifecycle()
-    val customOrderSongs by viewModel.playlistSongsInCustomOrder.collectAsStateWithLifecycle()
     val onlinePlaylist by viewModel.onlinePlaylist.collectAsStateWithLifecycle()
     val mutableSongs = remember { mutableStateListOf<PlaylistSong>() }
     val playlistLength =
@@ -671,7 +670,7 @@ fun LocalPlaylistScreen(
                                                 playerConnection.playQueue(
                                                     ListQueue(
                                                         title = playlist!!.playlist.name,
-                                                        items = customOrderSongs.map { it.song.toMediaItem() },
+                                                        items = viewModel.playlistSongsInCustomOrder.value.map { it.song.toMediaItem() },
                                                         startIndex = customOrderSongs.indexOfFirst { it.map.id == song.map.id },
                                                     ),
                                                 )
@@ -1332,7 +1331,7 @@ fun LocalPlaylistHeader(
                     playerConnection.playQueue(
                         ListQueue(
                             title = playlist.playlist.name,
-                            items = customOrderSongs.shuffled().map { it.song.toMediaItem() },
+                            items = viewModel.playlistSongsInCustomOrder.value.shuffled().map { it.song.toMediaItem() },
                         ),
                     )
                 },
