@@ -92,6 +92,20 @@ object PlaylistImportParser {
         return rows
     }
 
+    /** Convert CSV rows using a previously reviewed column mapping. */
+    fun csvToEntries(
+        input: String,
+        hasHeader: Boolean,
+        mapping: CsvColumnMapping,
+    ): List<PlaylistImportEntry> = csvToEntries(
+        input = input,
+        hasHeader = hasHeader,
+        titleColumn = mapping.titleColumn,
+        artistColumn = mapping.artistColumn,
+        albumColumn = mapping.albumColumn,
+        urlColumn = mapping.urlColumn,
+    )
+
     fun csvToEntries(
         input: String,
         hasHeader: Boolean,
