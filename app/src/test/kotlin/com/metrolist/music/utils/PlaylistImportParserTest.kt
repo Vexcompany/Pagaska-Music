@@ -24,7 +24,7 @@ class PlaylistImportParserTest {
         )
         assertEquals("Song", entries.single().title)
         assertEquals("A", entries.single().artist)
-        assertEquals(1, entries.single().sourceIndex)
+        assertEquals(0, entries.single().sourceIndex)
     }
 
     @Test
@@ -36,7 +36,7 @@ class PlaylistImportParserTest {
             artistColumn = 1,
             urlColumn = 2,
         )
-        assertEquals(listOf(1, 2), entries.map { it.sourceIndex })
+        assertEquals(listOf(0, 1), entries.map { it.sourceIndex })
         assertEquals(listOf("Second", "First"), entries.map { it.title })
         assertEquals(listOf("abcdefghijk", "12345678901"), entries.map { it.sourceId })
     }
