@@ -46,6 +46,15 @@ object PlaylistImportParser {
         )
     }
 
+    /** True when the required title column exists and optional columns are in range and distinct. */
+    fun isValidCsvColumnMapping(mapping: CsvColumnMapping, columnCount: Int): Boolean {
+        if (columnCount <= 0 || mapping.titleColumn !in 0 until columnCount) return false
+        val optional = listOf(mapping.artistColumn, mapping.albumColumn, mapping.urlColumn)
+        if (optional.any { it != -1 && it !in 0 until columnCount }) return false
+        val selected = listOf(mapping.titleColumn) + optional.filter { it >= 0 }
+        return selected.distinct().size == selected.size
+    }
+
     /** Parse a CSV file into its first row (headers) and remaining data rows. */
     fun parseCsvDocument(input: String, hasHeader: Boolean = true): ParsedCsv {
         val rows = parseCsv(input)
