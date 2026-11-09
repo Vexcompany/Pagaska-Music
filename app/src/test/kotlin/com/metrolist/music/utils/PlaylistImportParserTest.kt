@@ -20,7 +20,7 @@ class PlaylistImportParserTest {
             listOf("Track Name", "Artist", "Album", "YouTube URL"),
         )
         val entries = PlaylistImportParser.csvToEntries(
-            "Track Name,Artist,Album,YouTube URL\\nSong,A,Record,https://youtu.be/abcdefghijk",
+            "Track Name,Artist,Album,YouTube URL\nSong,A,Record,https://youtu.be/abcdefghijk",
             hasHeader = true,
             mapping = mapping,
         )
