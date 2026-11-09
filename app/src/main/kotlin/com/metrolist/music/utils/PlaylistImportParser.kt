@@ -21,6 +21,24 @@ data class ParsedCsv(
 )
 
 object PlaylistImportParser {
+    /** Best-effort header mapping; ambiguous or missing fields remain unset. */
+    fun inferCsvColumnMapping(headers: List<String>): CsvColumnMapping {
+        fun find(vararg terms: String): Int = headers.indexOfFirst { header ->
+            val normalized = header.lowercase().replace(Regex("[^a-z0-9]"), "")
+            terms.any { term -> normalized == term || normalized.contains(term) }
+        }
+        val title = find("title", "trackname", "songname", "name")
+        val artist = find("artist", "artists", "performer")
+        val album = find("album", "release")
+        val url = find("url", "link", "youtube", "videoid", "trackid")
+        return CsvColumnMapping(
+            titleColumn = title,
+            artistColumn = artist.takeIf { it != title } ?: -1,
+            albumColumn = album.takeIf { it != title && it != artist } ?: -1,
+            urlColumn = url.takeIf { it != title && it != artist && it != album } ?: -1,
+        )
+    }
+
     /** Parse a CSV file into its first row (headers) and remaining data rows. */
     fun parseCsvDocument(input: String, hasHeader: Boolean = true): ParsedCsv {
         val rows = parseCsv(input)
