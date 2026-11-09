@@ -74,7 +74,7 @@ object PlaylistImportParser {
             val title = row.getOrNull(titleColumn)?.trim().orEmpty()
             val url = row.getOrNull(urlColumn)?.trim()?.takeIf(String::isNotEmpty)
             PlaylistImportEntry(
-                sourceIndex = index + headerOffset,
+                sourceIndex = index,
                 title = title,
                 artist = row.getOrNull(artistColumn)?.trim().orEmpty(),
                 album = row.getOrNull(albumColumn)?.trim().orEmpty(),
