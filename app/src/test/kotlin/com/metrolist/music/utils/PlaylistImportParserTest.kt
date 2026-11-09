@@ -15,6 +15,22 @@ class PlaylistImportParserTest {
     }
 
     @Test
+    fun `csv converts entries with inferred column mapping`() {
+        val mapping = PlaylistImportParser.inferCsvColumnMapping(
+            listOf("Track Name", "Artist", "Album", "YouTube URL"),
+        )
+        val entries = PlaylistImportParser.csvToEntries(
+            "Track Name,Artist,Album,YouTube URL\\nSong,A,Record,https://youtu.be/abcdefghijk",
+            hasHeader = true,
+            mapping = mapping,
+        )
+        assertEquals("Song", entries.single().title)
+        assertEquals("A", entries.single().artist)
+        assertEquals("Record", entries.single().album)
+        assertEquals("abcdefghijk", entries.single().sourceId)
+    }
+
+    @Test
     fun `csv handles quoted commas escaped quotes and CRLF`() {
         val rows = PlaylistImportParser.parseCsv(
             "Title,Artist,Album\r\n\"Song, One\",\"A \"\"Quoted\"\" Artist\",Album\r\n",
