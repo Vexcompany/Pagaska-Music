@@ -6,6 +6,15 @@ import org.junit.Test
 
 class PlaylistImportParserTest {
     @Test
+    fun `csv document separates trimmed headers from data rows`() {
+        val document = PlaylistImportParser.parseCsvDocument(
+            "\uFEFF Title , Artist \n Song , Performer \n",
+        )
+        assertEquals(listOf("Title", "Artist"), document.headers)
+        assertEquals(listOf(listOf(" Song ", " Performer ")), document.rows)
+    }
+
+    @Test
     fun `csv handles quoted commas escaped quotes and CRLF`() {
         val rows = PlaylistImportParser.parseCsv(
             "Title,Artist,Album\r\n\"Song, One\",\"A \"\"Quoted\"\" Artist\",Album\r\n",
