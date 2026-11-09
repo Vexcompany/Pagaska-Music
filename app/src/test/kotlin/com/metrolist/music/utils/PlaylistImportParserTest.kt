@@ -50,7 +50,7 @@ class PlaylistImportParserTest {
             artistColumn = 1,
         )
         assertEquals(listOf("", "Named"), entries.map { it.title })
-        assertEquals(listOf(1, 2), entries.map { it.sourceIndex })
+        assertEquals(listOf(0, 1), entries.map { it.sourceIndex })
         assertNull(entries.first().sourceId)
     }
 
