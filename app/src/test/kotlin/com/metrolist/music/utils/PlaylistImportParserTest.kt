@@ -31,6 +31,31 @@ class PlaylistImportParserTest {
     }
 
     @Test
+    fun `csv mapping validation rejects invalid and duplicate columns`() {
+        assertEquals(
+            true,
+            PlaylistImportParser.isValidCsvColumnMapping(
+                CsvColumnMapping(titleColumn = 0, artistColumn = 1, urlColumn = 2),
+                columnCount = 3,
+            ),
+        )
+        assertEquals(
+            false,
+            PlaylistImportParser.isValidCsvColumnMapping(
+                CsvColumnMapping(titleColumn = 0, artistColumn = 0),
+                columnCount = 2,
+            ),
+        )
+        assertEquals(
+            false,
+            PlaylistImportParser.isValidCsvColumnMapping(
+                CsvColumnMapping(titleColumn = 3),
+                columnCount = 3,
+            ),
+        )
+    }
+
+    @Test
     fun `csv handles quoted commas escaped quotes and CRLF`() {
         val rows = PlaylistImportParser.parseCsv(
             "Title,Artist,Album\r\n\"Song, One\",\"A \"\"Quoted\"\" Artist\",Album\r\n",
