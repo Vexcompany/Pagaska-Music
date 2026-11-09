@@ -15,6 +15,13 @@ data class PlaylistImportEntry(
     val sourceId: String? = null,
 )
 
+data class CsvColumnMapping(
+    val titleColumn: Int,
+    val artistColumn: Int = -1,
+    val albumColumn: Int = -1,
+    val urlColumn: Int = -1,
+)
+
 data class ParsedCsv(
     val headers: List<String>,
     val rows: List<List<String>>,
