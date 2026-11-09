@@ -21,6 +21,15 @@ data class ParsedCsv(
 )
 
 object PlaylistImportParser {
+    /** Parse a CSV file into its first row (headers) and remaining data rows. */
+    fun parseCsvDocument(input: String, hasHeader: Boolean = true): ParsedCsv {
+        val rows = parseCsv(input)
+        return ParsedCsv(
+            headers = if (hasHeader) rows.firstOrNull().orEmpty().map(String::trim) else emptyList(),
+            rows = if (hasHeader) rows.drop(1) else rows,
+        )
+    }
+
     /** RFC-4180-style CSV parser supporting escaped quotes, commas and multiline cells. */
     fun parseCsv(input: String): List<List<String>> {
         val content = input.removePrefix("\uFEFF")
@@ -67,9 +76,7 @@ object PlaylistImportParser {
         urlColumn: Int = -1,
     ): List<PlaylistImportEntry> {
         require(titleColumn >= 0) { "Title column must be selected" }
-        val rows = parseCsv(input)
-        val headerOffset = if (hasHeader) 1 else 0
-        val dataRows = rows.drop(headerOffset)
+        val dataRows = parseCsvDocument(input, hasHeader).rows
         return dataRows.mapIndexed { index, row ->
             val title = row.getOrNull(titleColumn)?.trim().orEmpty()
             val url = row.getOrNull(urlColumn)?.trim()?.takeIf(String::isNotEmpty)
