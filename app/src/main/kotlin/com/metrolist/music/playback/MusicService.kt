@@ -729,8 +729,10 @@ class MusicService :
                     PendingIntent.getActivity(
                         this,
                         0,
-                        Intent(this, MainActivity::class.java),
-                        PendingIntent.FLAG_IMMUTABLE,
+                        Intent(this, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        },
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                     ),
                 ).setBitmapLoader(CoilBitmapLoader(this, scope))
                 .build()
@@ -1673,62 +1675,44 @@ class MusicService :
         )
     }
 
-    private fun updateNotification(isLiked: Boolean? = currentSong.value?.song?.let { if (it.isEpisode) it.inLibrary != null else it.liked }) {
+    /**
+     * Keep the system media card focused on Auralis-style Like and Repeat actions.
+     * Transport controls remain Media3-native; Shuffle, Radio and Add-to-playlist
+     * stay available in Pagaska's in-app controls.
+     */
+    private fun updateNotification(
+        isLiked: Boolean? = currentSong.value?.song?.let { if (it.isEpisode) it.inLibrary != null else it.liked },
+    ) {
         mediaSession?.setCustomLayout(
             listOf(
-                CommandButton
-                    .Builder()
+                CommandButton.Builder()
                     .setDisplayName(
-                        getString(
-                            if (isLiked == true) {
-                                R.string.action_remove_like
-                            } else {
-                                R.string.action_like
-                            },
-                        ),
-                    ).setIconResId(if (isLiked == true) R.drawable.ic_heart else R.drawable.ic_heart_outline)
+                        getString(if (isLiked == true) R.string.action_remove_like else R.string.action_like),
+                    )
+                    .setIconResId(if (isLiked == true) R.drawable.ic_heart else R.drawable.ic_heart_outline)
                     .setSessionCommand(CommandToggleLike)
                     .setEnabled(currentSong.value != null)
                     .build(),
-                CommandButton
-                    .Builder()
+                CommandButton.Builder()
                     .setDisplayName(
                         getString(
                             when (player.repeatMode) {
                                 REPEAT_MODE_OFF -> R.string.repeat_mode_off
                                 REPEAT_MODE_ONE -> R.string.repeat_mode_one
                                 REPEAT_MODE_ALL -> R.string.repeat_mode_all
-                                else -> throw IllegalStateException()
+                                else -> R.string.repeat_mode_off
                             },
                         ),
-                    ).setIconResId(
+                    )
+                    .setIconResId(
                         when (player.repeatMode) {
                             REPEAT_MODE_OFF -> R.drawable.repeat
                             REPEAT_MODE_ONE -> R.drawable.repeat_one_on
                             REPEAT_MODE_ALL -> R.drawable.repeat_on
-                            else -> throw IllegalStateException()
+                            else -> R.drawable.repeat
                         },
-                    ).setSessionCommand(CommandToggleRepeatMode)
-                    .build(),
-                CommandButton
-                    .Builder()
-                    .setDisplayName(getString(if (player.shuffleModeEnabled) R.string.action_shuffle_off else R.string.action_shuffle_on))
-                    .setIconResId(if (player.shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle)
-                    .setSessionCommand(CommandToggleShuffle)
-                    .build(),
-                CommandButton
-                    .Builder()
-                    .setDisplayName(getString(R.string.start_radio))
-                    .setIconResId(R.drawable.radio)
-                    .setSessionCommand(CommandToggleStartRadio)
-                    .setEnabled(currentSong.value != null)
-                    .build(),
-                CommandButton
-                    .Builder()
-                    .setDisplayName(getString(R.string.android_auto_target_playlist))
-                    .setIconResId(R.drawable.playlist_add)
-                    .setSessionCommand(CommandAddToTargetPlaylist)
-                    .setEnabled(currentSong.value != null)
+                    )
+                    .setSessionCommand(CommandToggleRepeatMode)
                     .build(),
             ),
         )
