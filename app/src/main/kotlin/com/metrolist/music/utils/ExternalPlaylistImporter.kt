@@ -100,17 +100,9 @@ object PlaylistLinkParser {
 }
 
 object PlaylistLinkFetcher {
-    suspend fun fetch(context: Context, rawUrl: String): ExternalPlaylist {
+    suspend fun fetch(context: Context, rawUrl: String): ExternalPlaylist = withTimeout(IMPORT_TIMEOUT_MS) {
         val resolvedUrl = if (PlaylistLinkParser.isSpotifyShortLink(rawUrl)) {
-            withContext(Dispatchers.IO) {
-                Jsoup.connect(rawUrl.trim())
-                    .userAgent(USER_AGENT)
-                    .timeout(15_000)
-                    .followRedirects(true)
-                    .execute()
-                    .url()
-                    .toString()
-            }
+            withContext(Dispatchers.IO) { resolveSpotifyShortLink(rawUrl.trim()) }
         } else {
             rawUrl.trim()
         }
@@ -118,12 +110,39 @@ object PlaylistLinkFetcher {
         val link = PlaylistLinkParser.parse(resolvedUrl)
             ?: throw IllegalArgumentException("Link tidak dikenali. Gunakan playlist Spotify atau Apple Music publik.")
 
-        return withTimeout(IMPORT_TIMEOUT_MS) {
-            when (link.source) {
-                ExternalPlaylistSource.SPOTIFY -> fetchSpotify(context, link)
-                ExternalPlaylistSource.APPLE_MUSIC -> fetchAppleMusic(context, link)
+        when (link.source) {
+            ExternalPlaylistSource.SPOTIFY -> fetchSpotify(context, link)
+            ExternalPlaylistSource.APPLE_MUSIC -> fetchAppleMusic(context, link)
+        }
+    }
+
+    private fun resolveSpotifyShortLink(rawUrl: String): String {
+        var current = runCatching { URI(rawUrl) }.getOrNull()
+            ?: throw IllegalArgumentException("Tautan Spotify tidak valid.")
+        repeat(5) {
+            if (!isTrustedSpotifyRedirectUrl(current)) {
+                throw IllegalArgumentException("Pengalihan tautan Spotify tidak aman.")
+            }
+            val response = Jsoup.connect(current.toString())
+                .userAgent(USER_AGENT)
+                .timeout(10_000)
+                .followRedirects(false)
+                .ignoreHttpErrors(true)
+                .execute()
+            val status = response.statusCode()
+            if (status in 300..399) {
+                val location = response.header("location")
+                    ?: throw IllegalStateException("Spotify tidak memberikan alamat pengalihan.")
+                current = runCatching { current.resolve(location) }.getOrNull()
+                    ?: throw IllegalArgumentException("Alamat pengalihan Spotify tidak valid.")
+            } else {
+                if (status !in 200..299) {
+                    throw IllegalStateException("Spotify gagal membuka tautan (HTTP $status).")
+                }
+                return current.toString()
             }
         }
+        throw IllegalStateException("Terlalu banyak pengalihan tautan Spotify.")
     }
 
     private suspend fun fetchSpotify(context: Context, link: ExternalPlaylistLink): ExternalPlaylist {
@@ -324,6 +343,12 @@ object PlaylistLinkFetcher {
         })();
     """.trimIndent()
 }
+
+internal fun isTrustedSpotifyRedirectUrl(uri: URI): Boolean =
+    uri.scheme == "https" &&
+        uri.host?.lowercase() in setOf("spotify.link", "open.spotify.com", "www.open.spotify.com") &&
+        uri.userInfo == null &&
+        uri.port in setOf(-1, 443)
 
 internal fun resolveAppleMusicNextUrl(
     currentUrl: String,
