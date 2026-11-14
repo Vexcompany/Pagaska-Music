@@ -32,6 +32,10 @@ class PlaylistLinkParserTest {
     fun rejectsUnsupportedAndMalformedLinks() {
         assertNull(PlaylistLinkParser.parse("https://example.com/playlist/123"))
         assertNull(PlaylistLinkParser.parse("https://open.spotify.com/playlist/not-a-spotify-id"))
+        assertNull(PlaylistLinkParser.parse("http://open.spotify.com/playlist/0123456789ABCDEFGHIJKL"))
+        assertNull(PlaylistLinkParser.parse("https://user@open.spotify.com/playlist/0123456789ABCDEFGHIJKL"))
+        assertNull(PlaylistLinkParser.parse("https://open.spotify.com:8443/playlist/0123456789ABCDEFGHIJKL"))
+        assertNull(PlaylistLinkParser.parse("https://music.apple.com:8080/id/playlist/example/pl.u-1234567890abcdef"))
     }
     @Test
     fun resolvesOnlyTrustedAppleMusicPaginationUrls() {
