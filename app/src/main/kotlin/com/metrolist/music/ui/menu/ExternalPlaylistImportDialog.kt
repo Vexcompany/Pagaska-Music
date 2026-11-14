@@ -150,12 +150,6 @@ fun ExternalPlaylistImportDialog(
                             }
                         }
                     }
-                    if (matches.size > 8) {
-                        Text(
-                            text = stringResource(R.string.external_playlist_more_tracks, matches.size - 8),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
                 }
 
                 error?.let {
