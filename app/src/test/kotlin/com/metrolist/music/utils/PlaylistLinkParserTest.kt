@@ -3,6 +3,7 @@ package com.metrolist.music.utils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.net.URI
 
 class PlaylistLinkParserTest {
     @Test
@@ -49,6 +50,15 @@ class PlaylistLinkParserTest {
         assertNull(
             resolveAppleMusicNextUrl(current, "/v1/catalog/id/playlists/pl.other/tracks?offset=100", "id", "pl.u-test"),
         )
+    }
+
+    @Test
+    fun onlyAllowsTrustedSpotifyShortLinkRedirectHosts() {
+        assertEquals(true, isTrustedSpotifyRedirectUrl(URI("https://spotify.link/abc")))
+        assertEquals(true, isTrustedSpotifyRedirectUrl(URI("https://open.spotify.com/playlist/0123456789ABCDEFGHIJKL")))
+        assertEquals(false, isTrustedSpotifyRedirectUrl(URI("https://attacker.example/collect")))
+        assertEquals(false, isTrustedSpotifyRedirectUrl(URI("http://open.spotify.com/playlist/0123456789ABCDEFGHIJKL")))
+        assertEquals(false, isTrustedSpotifyRedirectUrl(URI("https://open.spotify.com.attacker.example/playlist/0123456789ABCDEFGHIJKL")))
     }
 
 }
