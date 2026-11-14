@@ -27,13 +27,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.metrolist.music.LocalDatabase
 import com.metrolist.music.R
+import com.metrolist.music.db.entities.Playlist
 import com.metrolist.music.db.entities.PlaylistEntity
 import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.utils.ExternalPlaylistMatch
 import com.metrolist.music.utils.PlaylistLinkFetcher
 import com.metrolist.music.utils.PlaylistTrackMatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
@@ -59,7 +59,8 @@ fun ExternalPlaylistImportDialog(
     var progress by remember { mutableStateOf(0 to 0) }
 
     val matchedCount = matches.count { it.song != null }
-    val canImport = playlist != null && matchedCount > 0 && !loading && !importing
+    val uniqueMatchedCount = matches.mapNotNull { it.song }.distinctBy { it.id }.size
+    val canImport = playlist != null && uniqueMatchedCount > 0 && !loading && !importing
 
     AlertDialog(
         onDismissRequest = { if (!loading && !importing) onDismiss() },
@@ -168,7 +169,7 @@ fun ExternalPlaylistImportDialog(
                 enabled = canImport,
                 onClick = {
                     val source = playlist ?: return@TextButton
-                    val importedSongs = matches.mapNotNull { it.song }.map { it.toMediaMetadata() }
+                    val importedSongs = matches.mapNotNull { it.song }.distinctBy { it.id }.map { it.toMediaMetadata() }
                     if (importedSongs.isEmpty()) return@TextButton
                     coroutineScope.launch {
                         importing = true
@@ -184,13 +185,15 @@ fun ExternalPlaylistImportDialog(
                                 database.withTransaction {
                                     insert(entity)
                                     importedSongs.forEach(::insert)
+                                    addSongsToPlaylist(
+                                        Playlist(
+                                            playlist = entity,
+                                            songCount = 0,
+                                            songThumbnails = emptyList(),
+                                        ),
+                                        importedSongs.map { it.id to it.setVideoId },
+                                    )
                                 }
-                                val localPlaylist = database.playlist(entity.id).firstOrNull()
-                                    ?: throw IllegalStateException("The imported playlist could not be created.")
-                                database.addSongsToPlaylist(
-                                    localPlaylist,
-                                    importedSongs.map { it.id to it.setVideoId },
-                                )
                             }
                             onImported(entity.id)
                         } catch (exception: Exception) {
@@ -200,7 +203,7 @@ fun ExternalPlaylistImportDialog(
                     }
                 },
             ) {
-                Text(stringResource(R.string.import_matched_tracks, matchedCount))
+                Text(stringResource(R.string.import_matched_tracks, uniqueMatchedCount))
             }
         },
         dismissButton = {
