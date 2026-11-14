@@ -1021,7 +1021,7 @@
     <string name="stream_source_android_creator">ANDROID_CREATOR</string>
     <string name="stream_source_android_creator_desc">Android creator client. Off by default; needs DroidGuard.</string>
     <string name="import_external_playlist">Import external playlist</string>
-    <string name="external_playlist_import_description">Import a public playlist from Spotify or Apple Music. Tracks are matched with YouTube Music before being added.</string>
+    <string name="external_playlist_import_description">Import a public playlist from Spotify or Apple Music. Up to 500 tracks are matched with YouTube Music before being added.</string>
     <string name="playlist_link">Playlist link</string>
     <string name="fetch_and_match">Fetch and match</string>
     <string name="fetching_playlist">Fetching playlist…</string>
