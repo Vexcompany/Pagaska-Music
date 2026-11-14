@@ -5,6 +5,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.metrolist.innertube.YouTube
+import com.metrolist.paxsenix.Paxsenix
 import com.metrolist.innertube.models.SongItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -18,6 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
+import org.jsoup.HttpStatusException
 import org.jsoup.Jsoup
 import java.net.URI
 import java.text.Normalizer
@@ -118,7 +120,7 @@ object PlaylistLinkFetcher {
         return withTimeout(IMPORT_TIMEOUT_MS) {
             when (link.source) {
                 ExternalPlaylistSource.SPOTIFY -> fetchSpotify(context, link)
-                ExternalPlaylistSource.APPLE_MUSIC -> fetchAppleMusic(link)
+                ExternalPlaylistSource.APPLE_MUSIC -> fetchAppleMusic(context, link)
             }
         }
     }
@@ -200,27 +202,31 @@ object PlaylistLinkFetcher {
             json.toString()
         }
 
-    private suspend fun fetchAppleMusic(link: ExternalPlaylistLink): ExternalPlaylist = withContext(Dispatchers.IO) {
-        val pageUrl = "https://music.apple.com/" + link.storefront + "/playlist/" + link.id
-        val page = Jsoup.connect(pageUrl).userAgent(USER_AGENT).timeout(20_000).get()
-        val token = page.selectFirst("meta[name=music-kit-token], meta[property=music-kit-token], meta[name=apple-music-developer-token]")?.attr("content")
-            ?.takeIf(String::isNotBlank)
-            ?: Regex("""(?i)<meta[^>]+name=["']music-kit-token["'][^>]+content=["']([^"']+)""")
-                .find(page.html())?.groupValues?.getOrNull(1)
-            ?: throw IllegalStateException("Token katalog Apple Music tidak ditemukan pada halaman playlist.")
+    private suspend fun fetchAppleMusic(context: Context, link: ExternalPlaylistLink): ExternalPlaylist = withContext(Dispatchers.IO) {
+        var token = Paxsenix.getAppleMusicDeveloperToken(context)
 
-        fun requestJson(url: String): JSONObject =
-            JSONObject(
-                Jsoup.connect(url)
-                    .ignoreContentType(true)
-                    .userAgent(USER_AGENT)
-                    .header("Authorization", "Bearer " + token)
-                    .header("Origin", "https://music.apple.com")
-                    .header("Referer", "https://music.apple.com/")
-                    .timeout(20_000)
-                    .execute()
-                    .body(),
-            )
+        suspend fun requestJson(url: String): JSONObject {
+            fun request(bearer: String): JSONObject =
+                JSONObject(
+                    Jsoup.connect(url)
+                        .ignoreContentType(true)
+                        .userAgent(USER_AGENT)
+                        .header("Authorization", "Bearer " + bearer)
+                        .header("Origin", "https://music.apple.com")
+                        .header("Referer", "https://music.apple.com/")
+                        .timeout(20_000)
+                        .execute()
+                        .body(),
+                )
+
+            return try {
+                request(token)
+            } catch (exception: HttpStatusException) {
+                if (exception.statusCode != 401) throw exception
+                token = Paxsenix.getAppleMusicDeveloperToken(context, forceRefresh = true)
+                request(token)
+            }
+        }
 
         val base = "https://amp-api.music.apple.com/v1/catalog/" + link.storefront
         val metadata = requestJson(base + "/playlists/" + link.id)
