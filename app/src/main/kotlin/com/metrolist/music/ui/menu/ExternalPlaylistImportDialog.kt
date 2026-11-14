@@ -33,6 +33,7 @@ import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.utils.ExternalPlaylistMatch
 import com.metrolist.music.utils.PlaylistLinkFetcher
 import com.metrolist.music.utils.PlaylistTrackMatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -99,6 +100,8 @@ fun ExternalPlaylistImportDialog(
                                 matches = PlaylistTrackMatcher.match(fetched.tracks) { done, total ->
                                     progress = done to total
                                 }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
                             } catch (exception: Exception) {
                                 error = exception.message ?: context.getString(R.string.external_playlist_import_failed)
                             } finally {
@@ -196,6 +199,8 @@ fun ExternalPlaylistImportDialog(
                                 }
                             }
                             onImported(entity.id)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
                         } catch (exception: Exception) {
                             error = exception.message ?: context.getString(R.string.external_playlist_import_failed)
                             importing = false
