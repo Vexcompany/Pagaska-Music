@@ -7,6 +7,7 @@ import android.webkit.WebViewClient
 import com.metrolist.innertube.YouTube
 import com.metrolist.paxsenix.Paxsenix
 import com.metrolist.innertube.models.SongItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -256,7 +257,10 @@ object PlaylistLinkFetcher {
                 }
             }
             val next = response.optString("next").takeIf(String::isNotBlank)
-            nextUrl = next?.let { if (it.startsWith("http")) it else "https://amp-api.music.apple.com" + it }
+            nextUrl = next?.let {
+                resolveAppleMusicNextUrl(nextUrl!!, it, link.storefront, link.id)
+                    ?: throw IllegalStateException("Apple Music returned an invalid pagination URL.")
+            }
             pageCount++
         }
 
@@ -320,6 +324,25 @@ object PlaylistLinkFetcher {
     """.trimIndent()
 }
 
+internal fun resolveAppleMusicNextUrl(
+    currentUrl: String,
+    next: String,
+    storefront: String,
+    playlistId: String,
+): String? {
+    val resolved = runCatching { URI(currentUrl).resolve(next.trim()) }.getOrNull() ?: return null
+    val expectedPath = "/v1/catalog/$storefront/playlists/$playlistId/tracks"
+    if (resolved.scheme != "https" ||
+        resolved.host?.lowercase() != "amp-api.music.apple.com" ||
+        resolved.userInfo != null ||
+        resolved.port !in setOf(-1, 443) ||
+        resolved.path != expectedPath
+    ) {
+        return null
+    }
+    return resolved.toASCIIString()
+}
+
 object PlaylistTrackMatcher {
     suspend fun match(
         tracks: List<ExternalPlaylistTrack>,
@@ -335,11 +358,17 @@ object PlaylistTrackMatcher {
                     async {
                         semaphore.withPermit {
                             val query = listOf(track.title, track.artist).joinToString(" ")
-                            val candidates = YouTube.searchSummary(query).getOrNull()
-                                ?.summaries.orEmpty()
-                                .flatMap { it.items }
-                                .filterIsInstance<SongItem>()
-                                .distinctBy { it.id }
+                            val candidates = try {
+                                YouTube.searchSummary(query).getOrNull()
+                                    ?.summaries.orEmpty()
+                                    .flatMap { it.items }
+                                    .filterIsInstance<SongItem>()
+                                    .distinctBy { it.id }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                emptyList()
+                            }
                             val best = candidates
                                 .map { song -> song to score(track, song) }
                                 .maxByOrNull { it.second }
