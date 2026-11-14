@@ -25,8 +25,8 @@ import java.net.URI
 import java.text.Normalizer
 import kotlin.coroutines.resume
 
-private const val MAX_IMPORT_PAGES = 40
-private const val MAX_IMPORT_ENTRIES = 2_000
+private const val MAX_IMPORT_PAGES = 10
+private const val MAX_IMPORT_ENTRIES = 500
 private const val IMPORT_TIMEOUT_MS = 60_000L // Keep provider fetches bounded.
 
 enum class ExternalPlaylistSource { SPOTIFY, APPLE_MUSIC }
@@ -281,7 +281,7 @@ object PlaylistLinkFetcher {
             }
             scroller = scroller || document.scrollingElement || document.documentElement;
             let stable = 0;
-            for (let page = 0; page < 40 && found.size < 2000; page++) {
+            for (let page = 0; page < 10 && found.size < 500; page++) {
               const rows = [...document.querySelectorAll('[data-testid="tracklist-row"]')];
               const rowHeight = rows[0]?.getBoundingClientRect().height || 56;
               const base = Math.round(scroller.scrollTop / rowHeight);
@@ -346,7 +346,7 @@ object PlaylistTrackMatcher {
                             val confidence = best?.second ?: 0.0
                             ExternalPlaylistMatch(
                                 sourceTrack = track,
-                                song = best?.first?.takeIf { confidence >= 0.52 },
+                                song = best?.first?.takeIf { confidence >= 0.70 },
                                 confidence = confidence.toFloat(),
                             )
                         }
@@ -382,7 +382,7 @@ object PlaylistTrackMatcher {
             Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)
                 .replace(Regex("\\p{M}+"), "")
                 .replace(Regex("\\([^)]*(feat|ft\\.?)[^)]*\\)", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("[^a-z0-9 ]"), " ")
+                .replace(Regex("[^\\p{L}\\p{N} ]"), " ")
                 .split(Regex("\\s+"))
                 .filter { it.length > 1 }
                 .toSet()
