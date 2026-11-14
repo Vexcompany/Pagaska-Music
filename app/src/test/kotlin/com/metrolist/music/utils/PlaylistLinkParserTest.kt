@@ -7,8 +7,8 @@ import org.junit.Test
 class PlaylistLinkParserTest {
     @Test
     fun parsesSpotifyPlaylistAndAlbumLinks() {
-        val playlist = PlaylistLinkParser.parse("https://open.spotify.com/playlist/0123456789ABCDEFGHIJKLmn?si=test")
-        val album = PlaylistLinkParser.parse("https://open.spotify.com/intl-id/album/0123456789ABCDEFGHIJKLmn")
+        val playlist = PlaylistLinkParser.parse("https://open.spotify.com/playlist/0123456789ABCDEFGHIJKL?si=test")
+        val album = PlaylistLinkParser.parse("https://open.spotify.com/intl-id/album/0123456789ABCDEFGHIJKL")
 
         assertEquals(ExternalPlaylistSource.SPOTIFY, playlist?.source)
         assertEquals("playlist", playlist?.spotifyType)
