@@ -132,7 +132,7 @@ fun ExternalPlaylistImportDialog(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
-                        itemsIndexed(matches.take(8)) { index, match ->
+                        itemsIndexed(matches) { index, match ->
                             Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                 Text(
                                     text = (index + 1).toString() + ". " + match.sourceTrack.title,
