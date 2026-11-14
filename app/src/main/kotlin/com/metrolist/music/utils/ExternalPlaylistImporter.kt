@@ -27,7 +27,7 @@ import kotlin.coroutines.resume
 
 private const val MAX_IMPORT_PAGES = 40
 private const val MAX_IMPORT_ENTRIES = 2_000
-private const val IMPORT_TIMEOUT_MS = 60_000L
+private const val IMPORT_TIMEOUT_MS = 60_000L // Keep provider fetches bounded.
 
 enum class ExternalPlaylistSource { SPOTIFY, APPLE_MUSIC }
 
