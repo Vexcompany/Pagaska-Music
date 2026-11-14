@@ -32,4 +32,23 @@ class PlaylistLinkParserTest {
         assertNull(PlaylistLinkParser.parse("https://example.com/playlist/123"))
         assertNull(PlaylistLinkParser.parse("https://open.spotify.com/playlist/not-a-spotify-id"))
     }
+    @Test
+    fun resolvesOnlyTrustedAppleMusicPaginationUrls() {
+        val current = "https://amp-api.music.apple.com/v1/catalog/id/playlists/pl.u-test/tracks?limit=100"
+
+        assertEquals(
+            "https://amp-api.music.apple.com/v1/catalog/id/playlists/pl.u-test/tracks?offset=100",
+            resolveAppleMusicNextUrl(current, "/v1/catalog/id/playlists/pl.u-test/tracks?offset=100", "id", "pl.u-test"),
+        )
+        assertNull(
+            resolveAppleMusicNextUrl(current, "https://attacker.example/collect", "id", "pl.u-test"),
+        )
+        assertNull(
+            resolveAppleMusicNextUrl(current, "http://amp-api.music.apple.com/v1/catalog/id/playlists/pl.u-test/tracks?offset=100", "id", "pl.u-test"),
+        )
+        assertNull(
+            resolveAppleMusicNextUrl(current, "/v1/catalog/id/playlists/pl.other/tracks?offset=100", "id", "pl.u-test"),
+        )
+    }
+
 }
