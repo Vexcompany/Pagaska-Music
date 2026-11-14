@@ -215,6 +215,7 @@ object PlaylistLinkFetcher {
                         .header("Authorization", "Bearer " + bearer)
                         .header("Origin", "https://music.apple.com")
                         .header("Referer", "https://music.apple.com/")
+                        .followRedirects(false)
                         .timeout(20_000)
                         .execute()
                         .body(),
