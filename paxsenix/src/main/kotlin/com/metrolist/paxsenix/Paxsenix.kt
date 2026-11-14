@@ -86,6 +86,12 @@ object Paxsenix {
             appleTokenManager ?: AppleTokenManager(httpClient).also { appleTokenManager = it }
         }
 
+    suspend fun getAppleMusicDeveloperToken(context: Context, forceRefresh: Boolean = false): String {
+        init(context)
+        if (forceRefresh) tokenManager.clearToken()
+        return tokenManager.getToken()
+    }
+
     private val titleCleanupPatterns = listOf(
         Regex("""\s*\(.*?(official|video|audio|lyrics|lyric|visualizer|hd|hq|4k|remaster|remix|live|acoustic|version|edit|extended|radio|clean|explicit).*?\)""", RegexOption.IGNORE_CASE),
         Regex("""\s*\[.*?(official|video|audio|lyrics|lyric|visualizer|hd|hq|4k|remaster|remix|live|acoustic|version|edit|extended|radio|clean|explicit).*?\]""", RegexOption.IGNORE_CASE),
