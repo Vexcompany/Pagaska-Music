@@ -73,6 +73,7 @@ object PlaylistLinkParser {
         }
 
         val uri = runCatching { URI(value) }.getOrNull() ?: return null
+        if (uri.scheme != "https" || uri.userInfo != null || uri.port !in setOf(-1, 443)) return null
         val host = uri.host?.lowercase() ?: return null
         val segments = uri.path.orEmpty().split('/').filter(String::isNotBlank)
 
@@ -96,7 +97,14 @@ object PlaylistLinkParser {
     }
 
     fun isSpotifyShortLink(raw: String): Boolean =
-        runCatching { URI(raw.trim()).host?.lowercase() == "spotify.link" }.getOrDefault(false)
+        runCatching {
+            URI(raw.trim()).let { uri ->
+                uri.scheme == "https" &&
+                    uri.host?.lowercase() == "spotify.link" &&
+                    uri.userInfo == null &&
+                    uri.port in setOf(-1, 443)
+            }
+        }.getOrDefault(false)
 }
 
 object PlaylistLinkFetcher {
