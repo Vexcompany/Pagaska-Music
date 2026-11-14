@@ -115,9 +115,11 @@ object PlaylistLinkFetcher {
         val link = PlaylistLinkParser.parse(resolvedUrl)
             ?: throw IllegalArgumentException("Link tidak dikenali. Gunakan playlist Spotify atau Apple Music publik.")
 
-        return when (link.source) {
-            ExternalPlaylistSource.SPOTIFY -> fetchSpotify(context, link)
-            ExternalPlaylistSource.APPLE_MUSIC -> fetchAppleMusic(link)
+        return withTimeout(IMPORT_TIMEOUT_MS) {
+            when (link.source) {
+                ExternalPlaylistSource.SPOTIFY -> fetchSpotify(context, link)
+                ExternalPlaylistSource.APPLE_MUSIC -> fetchAppleMusic(link)
+            }
         }
     }
 
@@ -175,7 +177,7 @@ object PlaylistLinkFetcher {
 
                             @JavascriptInterface
                             fun onFailure(message: String) {
-                                if (continuation.isActive) continuation.resume("""{"error":\${JSONObject.quote(message)}}""")
+                                if (continuation.isActive) continuation.resume("""{"error":""" + JSONObject.quote(message) + "}")
                             }
                         }
                         view.addJavascriptInterface(bridge, "PagaskaBridge")
@@ -201,7 +203,7 @@ object PlaylistLinkFetcher {
     private suspend fun fetchAppleMusic(link: ExternalPlaylistLink): ExternalPlaylist = withContext(Dispatchers.IO) {
         val pageUrl = "https://music.apple.com/" + link.storefront + "/playlist/" + link.id
         val page = Jsoup.connect(pageUrl).userAgent(USER_AGENT).timeout(20_000).get()
-        val token = page.selectFirst("meta[name=music-kit-token]")?.attr("content")
+        val token = page.selectFirst("meta[name=music-kit-token], meta[property=music-kit-token], meta[name=apple-music-developer-token]")?.attr("content")
             ?.takeIf(String::isNotBlank)
             ?: Regex("""(?i)<meta[^>]+name=["']music-kit-token["'][^>]+content=["']([^"']+)""")
                 .find(page.html())?.groupValues?.getOrNull(1)
