@@ -364,8 +364,9 @@ object PlaylistTrackMatcher {
     private fun score(track: ExternalPlaylistTrack, song: SongItem): Double {
         val titleScore = tokenSimilarity(track.title, song.title)
         val artistScore = song.artists.maxOfOrNull { tokenSimilarity(track.artist, it.name) } ?: 0.0
-        val durationScore = if (track.durationMs != null && song.duration != null) {
-            val difference = kotlin.math.abs(track.durationMs - song.duration * 1000L)
+        val songDurationSeconds = song.duration
+        val durationScore = if (track.durationMs != null && songDurationSeconds != null) {
+            val difference = kotlin.math.abs(track.durationMs - songDurationSeconds * 1000L)
             when {
                 difference <= 3_000 -> 0.12
                 difference <= 8_000 -> 0.07
