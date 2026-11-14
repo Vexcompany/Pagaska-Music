@@ -76,6 +76,7 @@ import com.metrolist.music.constants.YtmSyncKey
 import com.metrolist.music.db.entities.Playlist
 import com.metrolist.music.db.entities.PlaylistEntity
 import com.metrolist.music.ui.component.CreatePlaylistDialog
+import com.metrolist.music.ui.menu.ExternalPlaylistImportDialog
 import com.metrolist.music.ui.component.LibrarySearchEmptyPlaceholder
 import com.metrolist.music.ui.component.LibrarySearchHeader
 import com.metrolist.music.ui.component.LibraryPlaylistGridItem
@@ -315,6 +316,7 @@ fun LibraryPlaylistsScreen(
     }
 
     var showCreatePlaylistDialog by rememberSaveable { mutableStateOf(false) }
+    var showExternalPlaylistImportDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showCreatePlaylistDialog) {
         CreatePlaylistDialog(
@@ -325,6 +327,17 @@ fun LibraryPlaylistsScreen(
                 showCreatePlaylistDialog = false
                 navController.navigate("local_playlist/$playlistId")
             }
+        )
+    }
+
+    if (showExternalPlaylistImportDialog) {
+        ExternalPlaylistImportDialog(
+            isVisible = true,
+            onDismiss = { showExternalPlaylistImportDialog = false },
+            onImported = { playlistId ->
+                showExternalPlaylistImportDialog = false
+                navController.navigate("local_playlist/$playlistId")
+            },
         )
     }
 
@@ -366,6 +379,16 @@ fun LibraryPlaylistsScreen(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.secondary,
             )
+
+            IconButton(
+                onClick = { showExternalPlaylistImportDialog = true },
+                modifier = Modifier.padding(start = 8.dp).size(40.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.playlist_add),
+                    contentDescription = stringResource(R.string.import_external_playlist),
+                )
+            }
 
             IconButton(
                 onClick = { isSearchActive = true },
