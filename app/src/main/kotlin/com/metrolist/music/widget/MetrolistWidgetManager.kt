@@ -174,7 +174,7 @@ class MetrolistWidgetManager @Inject constructor(
         if (albumArt != null) {
             views.setImageViewBitmap(R.id.widget_album_art, albumArt)
         } else {
-            views.setImageViewBitmap(R.id.widget_album_art, getDefaultArtwork())
+            views.setImageViewBitmap(R.id.widget_album_art, getRoundedDefaultIcon(0f))
         }
 
         // Set play/pause icon
