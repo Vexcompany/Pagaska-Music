@@ -169,12 +169,12 @@ class MetrolistWidgetManager @Inject constructor(
         views.setTextViewText(R.id.widget_song_title, title)
         views.setTextViewText(R.id.widget_artist_name, artist)
 
-        // Set album art with rounded corners
+        // Full player uses edge-to-edge artwork; the outer widget frame supplies the hard Neo-Brutalist border.
+        // Keep rounded/circular processing limited to compact and turntable variants.
         if (albumArt != null) {
-            val roundedAlbumArt = getRoundedCornerBitmap(albumArt, 48f)
-            views.setImageViewBitmap(R.id.widget_album_art, roundedAlbumArt)
+            views.setImageViewBitmap(R.id.widget_album_art, albumArt)
         } else {
-            views.setImageViewBitmap(R.id.widget_album_art, getRoundedDefaultIcon(48f))
+            views.setImageViewBitmap(R.id.widget_album_art, getDefaultArtwork())
         }
 
         // Set play/pause icon
