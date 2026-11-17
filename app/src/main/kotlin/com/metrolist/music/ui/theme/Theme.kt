@@ -53,13 +53,28 @@ fun MetrolistTheme(
         )
     }
 
+    // Pagaska Neo Brutalism: high-contrast ink surfaces and acid-yellow accents.
+    val brutalScheme = remember(baseColorScheme, darkTheme) {
+        baseColorScheme.copy(
+            primary = Color(0xFFF5E84B),
+            onPrimary = Color(0xFF111111),
+            primaryContainer = Color(0xFFE6D82F),
+            onPrimaryContainer = Color(0xFF111111),
+            secondary = Color(0xFFB8F35A),
+            onSecondary = Color(0xFF111111),
+            tertiary = Color(0xFFFF70A6),
+            onTertiary = Color(0xFF111111),
+            surface = if (darkTheme) Color(0xFF171717) else Color(0xFFFFFEF8),
+            background = if (darkTheme) Color(0xFF101010) else Color(0xFFFFFDF5),
+            onSurface = if (darkTheme) Color(0xFFF8F6E9) else Color(0xFF171717),
+            onBackground = if (darkTheme) Color(0xFFF8F6E9) else Color(0xFF171717),
+            outline = if (darkTheme) Color(0xFF777777) else Color(0xFF292929),
+        )
+    }
+
     // Apply pureBlack modification if needed, similar to original logic
-    val colorScheme = remember(baseColorScheme, pureBlack, darkTheme) {
-        if (darkTheme && pureBlack) {
-            baseColorScheme.pureBlack(true)
-        } else {
-            baseColorScheme
-        }
+    val colorScheme = remember(brutalScheme, pureBlack, darkTheme) {
+        if (darkTheme && pureBlack) brutalScheme.pureBlack(true) else brutalScheme
     }
 
     // Use standard MaterialTheme instead of MaterialExpressiveTheme
