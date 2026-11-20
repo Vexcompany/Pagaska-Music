@@ -982,9 +982,9 @@ fun AppearanceSettings(
                         description = {
                             Text(
                                 if (Settings.canDrawOverlays(iconContext)) {
-                                    "Floating island siap digunakan setelah mesin overlay diaktifkan."
+                                    "Preferensi aktif tersimpan. Mesin overlay sedang disiapkan; izin khusus diperlukan."
                                 } else {
-                                    "Membutuhkan izin tampil di atas aplikasi lain."
+                                    "Aktifkan izin tampil di atas aplikasi lain sebelum Island Engine dapat berjalan."
                                 }
                             )
                         },
