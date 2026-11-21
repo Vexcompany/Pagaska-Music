@@ -9,6 +9,9 @@ import android.content.Context
 import android.net.ConnectivityManager
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
+import coil3.imageLoader
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import androidx.media3.database.DatabaseProvider
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
@@ -52,7 +55,7 @@ import javax.inject.Singleton
 class DownloadUtil
 @Inject
 constructor(
-    @ApplicationContext context: Context,
+     @ApplicationContext private val context: Context,
     val database: MusicDatabase,
     val databaseProvider: DatabaseProvider,
     @DownloadCache val downloadCache: Cache,
@@ -222,6 +225,7 @@ constructor(
                                     // automatic cache quota is not charged for a downloaded song.
                                     offlineCacheManager.detachForExplicitDownload(download.request.id)
                                     database.updateDownloadedInfo(download.request.id, true, LocalDateTime.now())
+                                    cacheDownloadedArtwork(download.request.id)
                                 }
                                 Download.STATE_FAILED,
                                 Download.STATE_STOPPED,
@@ -264,6 +268,33 @@ constructor(
             result[cursor.download.request.id] = cursor.download
         }
         downloads.value = result
+    }
+
+    /**
+     * Pre-warm the shared Coil disk cache when an explicit song download completes.
+     * Audio and artwork use separate caches; downloading the audio alone does not
+     * guarantee that its thumbnail is available while offline.
+     */
+    private suspend fun cacheDownloadedArtwork(songId: String) {
+        val artworkUrl = runCatching { database.songEntity(songId)?.thumbnailUrl }
+            .onFailure { Timber.tag(TAG).w(it, "Could not read artwork URL for $songId") }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+
+        runCatching {
+            context.imageLoader.execute(
+                ImageRequest.Builder(context)
+                    .data(artworkUrl)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .networkCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+            )
+        }.onFailure {
+            // Artwork is optional; never fail or roll back a successful audio download.
+            Timber.tag(TAG).w(it, "Could not cache artwork for downloaded song $songId")
+        }
     }
 
     fun getDownload(songId: String): Flow<Download?> = downloads.map { it[songId] }

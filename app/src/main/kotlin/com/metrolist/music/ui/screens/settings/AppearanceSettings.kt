@@ -9,6 +9,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -83,6 +86,8 @@ import com.metrolist.music.constants.LyricsTextSizeKey
 import com.metrolist.music.constants.MiniPlayerBackgroundStyle
 import com.metrolist.music.constants.MiniPlayerBackgroundStyleKey
 import com.metrolist.music.constants.PlayerBackgroundStyle
+import com.metrolist.music.constants.PagaskaIslandEnabledKey
+import com.metrolist.music.constants.PagaskaIslandPositionKey
 import com.metrolist.music.constants.PlayerBackgroundStyleKey
 import com.metrolist.music.constants.PlayerButtonsStyle
 import com.metrolist.music.constants.PlayerButtonsStyleKey
@@ -129,10 +134,16 @@ fun AppearanceSettings(
     activity: Activity,
     snackbarHostState: SnackbarHostState,
 ) {
+    val (pagaskaIslandEnabled, onPagaskaIslandEnabledChange) =
+        rememberPreference(PagaskaIslandEnabledKey, defaultValue = false)
+    val (pagaskaIslandPosition, onPagaskaIslandPositionChange) =
+        rememberPreference(PagaskaIslandPositionKey, defaultValue = "TOP_CENTER")
+    var showPagaskaIslandPositionDialog by rememberSaveable { mutableStateOf(false) }
+
     val (dynamicTheme, onDynamicThemeChange) =
         rememberPreference(
             DynamicThemeKey,
-            defaultValue = true,
+            defaultValue = false,
         )
     val (enableDynamicIcon, onEnableDynamicIconPrefChange) =
         rememberPreference(
@@ -961,6 +972,76 @@ fun AppearanceSettings(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
     ) {
+        Material3SettingsGroup(
+            title = "Pagaska Island",
+            items = buildList {
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.fullscreen),
+                        title = { Text("Aktifkan Pagaska Island") },
+                        description = {
+                            Text(
+                                if (Settings.canDrawOverlays(iconContext)) {
+                                    "Island akan muncul di atas aplikasi saat musik Pagaska sedang diputar."
+                                } else {
+                                    "Izinkan Pagaska Music tampil di atas aplikasi lain agar Island bisa digunakan."
+                                }
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = pagaskaIslandEnabled,
+                                onCheckedChange = { enabled ->
+                                    if (!enabled) {
+                                        onPagaskaIslandEnabledChange(false)
+                                    } else if (Settings.canDrawOverlays(iconContext)) {
+                                        onPagaskaIslandEnabledChange(true)
+                                    } else {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:${iconContext.packageName}"),
+                                        )
+                                        iconContext.startActivity(intent)
+                                    }
+                                },
+                            )
+                        },
+                        onClick = {
+                            if (pagaskaIslandEnabled) {
+                                onPagaskaIslandEnabledChange(false)
+                            } else if (Settings.canDrawOverlays(iconContext)) {
+                                onPagaskaIslandEnabledChange(true)
+                            } else {
+                                iconContext.startActivity(
+                                    Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${iconContext.packageName}"),
+                                    )
+                                )
+                            }
+                        },
+                    ),
+                )
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.fullscreen),
+                        title = { Text("Posisi Island") },
+                        description = {
+                            Text(
+                                when (pagaskaIslandPosition) {
+                                    "TOP_LEFT" -> "Kiri atas"
+                                    "TOP_RIGHT" -> "Kanan atas"
+                                    "TOP_CENTER" -> "Tengah atas"
+                                    else -> "Tengah atas"
+                                }
+                            )
+                        },
+                        onClick = { showPagaskaIslandPositionDialog = true },
+                    ),
+                )
+            },
+        )
+
         Material3SettingsGroup(
             title = stringResource(R.string.theme),
             items =
@@ -1890,6 +1971,44 @@ fun AppearanceSettings(
                 Text(stringResource(R.string.experimental_lyrics_beta_message))
             }
         }
+    }
+
+    if (showPagaskaIslandPositionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPagaskaIslandPositionDialog = false },
+            title = { Text("Posisi Pagaska Island") },
+            text = {
+                Column {
+                    listOf(
+                        "TOP_LEFT" to "Kiri atas",
+                        "TOP_CENTER" to "Tengah atas",
+                        "TOP_RIGHT" to "Kanan atas",
+                    ).forEach { (value, label) ->
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                onPagaskaIslandPositionChange(value)
+                                showPagaskaIslandPositionDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (pagaskaIslandPosition == value) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPagaskaIslandPositionDialog = false }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+        )
     }
 
     TopAppBar(

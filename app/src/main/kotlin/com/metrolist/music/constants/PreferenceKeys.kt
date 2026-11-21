@@ -23,6 +23,10 @@ val PureBlackMiniPlayerKey = booleanPreferencesKey("pureBlackMiniPlayer")
 val MiniPlayerOutlineKey = booleanPreferencesKey("miniPlayerOutline")
 val MiniPlayerBackgroundStyleKey = stringPreferencesKey("miniPlayerBackgroundStyle")
 
+// Pagaska Island floating overlay preferences.
+val PagaskaIslandEnabledKey = booleanPreferencesKey("pagaskaIslandEnabled")
+val PagaskaIslandPositionKey = stringPreferencesKey("pagaskaIslandPosition")
+
 enum class MiniPlayerBackgroundStyle {
     DEFAULT,
     TRANSPARENT,
