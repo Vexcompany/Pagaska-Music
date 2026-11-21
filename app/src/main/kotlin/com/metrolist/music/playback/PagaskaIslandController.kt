@@ -248,11 +248,11 @@ internal class PagaskaIslandController(
         val view = root ?: return
         val window = params ?: return
         val density = context.resources.displayMetrics.density
-        window.gravity = Gravity.TOP or when (position) {
+        window.gravity = Gravity.TOP or (when (position) {
             "TOP_LEFT" -> Gravity.START
             "TOP_RIGHT" -> Gravity.END
             else -> Gravity.CENTER_HORIZONTAL
-        }
+        })
         window.x = if (position == "TOP_CENTER") 0 else (12 * density).roundToInt()
         window.y = (6 * density).roundToInt()
         runCatching { windowManager.updateViewLayout(view, window) }
