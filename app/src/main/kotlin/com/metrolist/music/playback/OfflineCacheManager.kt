@@ -9,6 +9,9 @@ import android.content.Context
 import android.widget.Toast
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheSpan
+import coil3.imageLoader
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import com.metrolist.music.R
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.utils.SongCacheConfig
@@ -91,6 +94,10 @@ class OfflineCacheManager(
             cursor.close()
         }
         OfflineCacheRegistry.replaceAll(protectedIds)
+
+        // Existing automatic Offline Cache entries may predate artwork prefetch. Re-warm their
+        // thumbnails on startup; failures are harmless and can be retried on later cache activity.
+        protectedIds.forEach { mediaId -> cacheOfflineArtwork(mediaId) }
     }
 
     suspend fun promoteIfEligible(
@@ -100,7 +107,10 @@ class OfflineCacheManager(
         if (contentLength <= 0L) return@withContext false
         if (database.songEntity(mediaId)?.isDownloaded == true) return@withContext false
         if (!playerCache.isCached(mediaId, 0L, contentLength)) return@withContext false
-        if (OfflineCacheRegistry.isProtected(mediaId)) return@withContext true
+        if (OfflineCacheRegistry.isProtected(mediaId)) {
+            cacheOfflineArtwork(mediaId)
+            return@withContext true
+        }
 
         val maxBytes = SongCacheConfig.maxBytes
         if (maxBytes != Long.MAX_VALUE && protectedCacheBytes() + contentLength > maxBytes) {
@@ -122,6 +132,10 @@ class OfflineCacheManager(
                 "UPDATE song SET isCached = 1 WHERE id = ? AND isDownloaded = 0",
                 arrayOf(mediaId),
             )
+
+            // Keep artwork in Coil's independent image cache, not in the audio download cache.
+            // A failed artwork request must never undo a successfully cached audio track.
+            cacheOfflineArtwork(mediaId)
             true
         } catch (t: Throwable) {
             OfflineCacheRegistry.unprotect(mediaId)
@@ -195,6 +209,34 @@ class OfflineCacheManager(
         OfflineCacheRegistry.snapshot().sumOf { mediaId ->
             playerCache.getCachedSpans(mediaId).sumOf { it.length }
         }
+
+
+    /**
+     * Pre-warms the shared Coil disk cache for a song stored in automatic Offline Cache.
+     * This is deliberately independent from playerCache/downloadCache and never changes the
+     * song's download state. The same URL and shared ImageLoader are used by player artwork.
+     */
+    private suspend fun cacheOfflineArtwork(mediaId: String) {
+        val artworkUrl = runCatching { database.songEntity(mediaId)?.thumbnailUrl }
+            .onFailure { Timber.tag(TAG).w(it, "Could not read Offline Cache artwork URL for %s", mediaId) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+
+        runCatching {
+            context.imageLoader.execute(
+                ImageRequest.Builder(context)
+                    .data(artworkUrl)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .networkCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+            )
+        }.onFailure {
+            // Artwork is optional; never fail or roll back a successful audio-cache promotion.
+            Timber.tag(TAG).w(it, "Could not cache artwork for Offline Cache song %s", mediaId)
+        }
+    }
 
     private suspend fun warnCapacityFullOnce() {
         if (!capacityWarningShown.compareAndSet(false, true)) return
