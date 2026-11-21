@@ -13,7 +13,6 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -113,7 +112,7 @@ internal class PagaskaIslandController(
         val metadata = item.mediaMetadata
         val title = metadata.title?.toString()?.takeIf(String::isNotBlank) ?: "Memutar musik"
         val artist = metadata.artist?.toString()?.takeIf(String::isNotBlank) ?: "Pagaska Music"
-        val view = root ?: createOverlay().also { root = it }
+        val view = root ?: createOverlay()?.also { root = it } ?: return
         val content = view.getChildAt(0) as? LinearLayout ?: return
         val titleView = content.findViewWithTag<TextView>("island_title")
         val artistView = content.findViewWithTag<TextView>("island_artist")
@@ -128,7 +127,7 @@ internal class PagaskaIslandController(
         updateWindowPosition()
     }
 
-    private fun createOverlay(): FrameLayout {
+    private fun createOverlay(): FrameLayout? {
         val density = context.resources.displayMetrics.density
         fun dp(value: Int) = (value * density).roundToInt()
         val shell = FrameLayout(context)
@@ -221,12 +220,13 @@ internal class PagaskaIslandController(
             }
         }
         params = layoutParams
-        runCatching { windowManager.addView(shell, layoutParams) }
-            .onFailure {
-                params = null
-                root = null
-            }
-        return shell
+        return runCatching {
+            windowManager.addView(shell, layoutParams)
+            shell
+        }.getOrElse {
+            params = null
+            null
+        }
     }
 
     private fun islandButton(
