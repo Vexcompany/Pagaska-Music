@@ -69,7 +69,7 @@ fun MetrolistTheme(
             outline = if (darkTheme) Color(0xFFB8B5AA) else Color(0xFF292929),
             outlineVariant = if (darkTheme) Color(0xFF55534C) else Color(0xFF77746B),
         )
-    )
+    }
 
     // Apply pureBlack modification if needed, similar to original logic
     val colorScheme = remember(brutalScheme, pureBlack, darkTheme) {
