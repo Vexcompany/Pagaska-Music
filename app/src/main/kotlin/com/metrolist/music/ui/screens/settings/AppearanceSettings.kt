@@ -982,9 +982,9 @@ fun AppearanceSettings(
                         description = {
                             Text(
                                 if (Settings.canDrawOverlays(iconContext)) {
-                                    "Preferensi aktif tersimpan. Mesin overlay sedang disiapkan; izin khusus diperlukan."
+                                    "Island akan muncul di atas aplikasi saat musik Pagaska sedang diputar."
                                 } else {
-                                    "Aktifkan izin tampil di atas aplikasi lain sebelum Island Engine dapat berjalan."
+                                    "Izinkan Pagaska Music tampil di atas aplikasi lain agar Island bisa digunakan."
                                 }
                             )
                         },
