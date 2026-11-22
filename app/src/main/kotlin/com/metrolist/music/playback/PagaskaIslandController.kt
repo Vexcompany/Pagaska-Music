@@ -66,6 +66,16 @@ internal class PagaskaIslandController(
     private var enabled = false
     private var position = "TOP_CENTER"
     private var expanded = false
+    private var minimized = false
+    private var islandCard: View? = null
+    private var bubbleView: View? = null
+    private var minimizeButton: ImageButton? = null
+    private var bubbleStartX = 0f
+    private var bubbleStartY = 0f
+    private var bubbleStartLeft = 0
+    private var bubbleStartTop = 0
+    private var bubbleDragging = false
+    private val islandPrefs by lazy { context.getSharedPreferences("pagaska_island_overlay", Context.MODE_PRIVATE) }
     private var userSeeking = false
     private var coverUrl: String? = null
     private var dragStartRawX = 0f
@@ -154,6 +164,7 @@ internal class PagaskaIslandController(
         }
 
         val metadata = item.mediaMetadata
+        minimized = islandPrefs.getBoolean("minimized", false)
         titleView?.text = metadata.title?.toString()?.takeIf(String::isNotBlank) ?: "Memutar musik"
         artistView?.text = metadata.artist?.toString()?.takeIf(String::isNotBlank) ?: "Pagaska Music"
         playButton?.apply {
@@ -181,6 +192,7 @@ internal class PagaskaIslandController(
             }
         }
         updateExpandedState()
+        if (minimized) showBubble() else showIslandCard()
         updateWindowPosition()
         updateProgress()
         if (view.parent == null) return
@@ -203,6 +215,7 @@ internal class PagaskaIslandController(
             setPadding(dp(9), dp(8), dp(9), dp(8))
             background = roundedRect(Color.rgb(245, 232, 75), 8, Color.BLACK, 3)
         }
+        islandCard = card
         shell.addView(
             card,
             FrameLayout.LayoutParams(-2, -2).apply {
@@ -263,6 +276,11 @@ internal class PagaskaIslandController(
             player?.let { if (it.isPlaying) it.pause() else it.play() }
             render()
         }
+        minimizeButton = islandButton(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            "Minimalkan Pagaska Island",
+            dp(28),
+        ) { minimizeIsland() }
         nextButton = islandButton(
             android.R.drawable.ic_media_next,
             "Berikutnya",
@@ -271,6 +289,7 @@ internal class PagaskaIslandController(
         topRow.addView(previousButton)
         topRow.addView(playButton)
         topRow.addView(nextButton)
+        topRow.addView(minimizeButton)
         card.addView(topRow)
 
         val details = LinearLayout(context).apply {
@@ -317,7 +336,6 @@ internal class PagaskaIslandController(
         card.addView(details)
 
         card.setOnClickListener { setExpanded(!expanded) }
-        card.setOnTouchListener { _, event -> handleDrag(event) }
 
         val layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -344,6 +362,109 @@ internal class PagaskaIslandController(
             params = null
             null
         }
+    }
+
+    private fun minimizeIsland() {
+        minimized = true
+        islandPrefs.edit().putBoolean("minimized", true).apply()
+        expanded = false
+        showBubble()
+    }
+
+    private fun restoreIsland() {
+        minimized = false
+        islandPrefs.edit().putBoolean("minimized", false).apply()
+        bubbleView?.let { root?.removeView(it) }
+        bubbleView = null
+        showIslandCard()
+        updateWindowPosition()
+    }
+
+    private fun showIslandCard() {
+        islandCard?.visibility = View.VISIBLE
+        bubbleView?.visibility = View.GONE
+        root?.post { root?.let { view -> params?.let { runCatching { windowManager.updateViewLayout(view, it) } } } }
+    }
+
+    private fun showBubble() {
+        val shell = root ?: return
+        islandCard?.visibility = View.GONE
+        bubbleView?.let { existing ->
+            existing.visibility = View.VISIBLE
+            shell.post { params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
+            return
+        }
+        val bubble = FrameLayout(context).apply {
+            background = roundedRect(Color.rgb(245, 232, 75), 50, Color.BLACK, 3)
+            elevation = 0f
+            val art = ImageView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageResource(android.R.drawable.ic_media_play)
+                contentDescription = "Pagaska Island, ketuk untuk membuka kontrol musik"
+                clipToOutline = true
+                background = roundedRect(Color.WHITE, 50, Color.BLACK, 1)
+            }
+            coverUrl?.takeIf(String::isNotBlank)?.let { url ->
+                context.imageLoader.enqueue(ImageRequest.Builder(context).data(url).target(art).build())
+            }
+            addView(art, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
+            setOnClickListener { restoreIsland() }
+            setOnTouchListener { _, event -> handleBubbleDrag(event) }
+        }
+        bubbleView = bubble
+        shell.addView(bubble, FrameLayout.LayoutParams(dp(56), dp(56)))
+        val savedX = islandPrefs.getInt("bubble_x", -1)
+        val savedY = islandPrefs.getInt("bubble_y", -1)
+        bubble.translationX = if (savedX >= 0) savedX.toFloat() else 0f
+        bubble.translationY = if (savedY >= 0) savedY.toFloat() else dp(120).toFloat()
+        shell.post { params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
+    }
+
+    private fun handleBubbleDrag(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                bubbleStartX = event.rawX
+                bubbleStartY = event.rawY
+                bubbleStartLeft = (bubbleView?.translationX ?: 0f).roundToInt()
+                bubbleStartTop = (bubbleView?.translationY ?: 0f).roundToInt()
+                bubbleDragging = false
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = (event.rawX - bubbleStartX).roundToInt()
+                val dy = (event.rawY - bubbleStartY).roundToInt()
+                val slop = ViewConfiguration.get(context).scaledTouchSlop
+                if (!bubbleDragging && (abs(dx) > slop || abs(dy) > slop)) bubbleDragging = true
+                if (bubbleDragging) {
+                    val view = bubbleView ?: return true
+                    val width = context.resources.displayMetrics.widthPixels
+                    val height = context.resources.displayMetrics.heightPixels
+                    view.translationX = (bubbleStartLeft + dx).coerceIn(0, (width - dp(56)).coerceAtLeast(0)).toFloat()
+                    view.translationY = (bubbleStartTop + dy).coerceIn(dp(24), (height - dp(100)).coerceAtLeast(dp(24))).toFloat()
+                    root?.let { shell -> params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (bubbleDragging) {
+                    val view = bubbleView
+                    if (view != null) {
+                        val width = context.resources.displayMetrics.widthPixels
+                        val targetX = if (view.translationX + dp(28) < width / 2f) dp(6) else width - dp(62)
+                        view.animate().translationX(targetX.toFloat()).setDuration(140L).start()
+                        islandPrefs.edit()
+                            .putInt("bubble_x", targetX)
+                            .putInt("bubble_y", view.translationY.roundToInt())
+                            .apply()
+                    }
+                } else if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    restoreIsland()
+                }
+                bubbleDragging = false
+                return true
+            }
+        }
+        return true
     }
 
     private fun setExpanded(value: Boolean) {
@@ -508,6 +629,9 @@ internal class PagaskaIslandController(
         userSeeking = false
         dragging = false
         hasUserPosition = false
+        islandCard = null
+        bubbleView = null
+        minimizeButton = null
         coverUrl = null
         titleView = null
         artistView = null
