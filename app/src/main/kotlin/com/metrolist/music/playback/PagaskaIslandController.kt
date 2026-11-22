@@ -70,7 +70,6 @@ internal class PagaskaIslandController(
     private var coverUrl: String? = null
     private var dragStartRawX = 0f
     private var dragStartRawY = 0f
-    private var dragStartWindowX = 0
     private var dragStartWindowY = 0
     private var dragging = false
     private var hasUserPosition = false
@@ -190,23 +189,13 @@ internal class PagaskaIslandController(
     }
 
     private fun createOverlay(): FrameLayout? {
+        // The shell itself is the offset shadow plate. The card sits 4dp
+        // above and left, keeping the shadow crisp with no blur or elevation.
         val shell = FrameLayout(context).apply {
             clipChildren = false
             clipToPadding = false
-        }
-
-        // A solid offset plate gives the island a crisp Neo Brutalist shadow,
-        // rather than a blurred elevation/glass effect.
-        val shadowPlate = View(context).apply {
             background = roundedRect(Color.BLACK, 8, Color.BLACK, 0)
         }
-        shell.addView(
-            shadowPlate,
-            FrameLayout.LayoutParams(-1, -1).apply {
-                rightMargin = dp(4)
-                bottomMargin = dp(4)
-            },
-        )
 
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -217,8 +206,8 @@ internal class PagaskaIslandController(
         shell.addView(
             card,
             FrameLayout.LayoutParams(-2, -2).apply {
-                leftMargin = 0
-                topMargin = 0
+                rightMargin = dp(4)
+                bottomMargin = dp(4)
             },
         )
 
@@ -328,10 +317,6 @@ internal class PagaskaIslandController(
         card.addView(details)
 
         card.setOnClickListener { setExpanded(!expanded) }
-        card.setOnLongClickListener {
-            openMainActivity()
-            true
-        }
         card.setOnTouchListener { _, event -> handleDrag(event) }
 
         val layoutParams = WindowManager.LayoutParams(
@@ -450,7 +435,6 @@ internal class PagaskaIslandController(
             MotionEvent.ACTION_DOWN -> {
                 dragStartRawX = event.rawX
                 dragStartRawY = event.rawY
-                dragStartWindowX = window.x
                 dragStartWindowY = window.y
                 val screenWidth = context.resources.displayMetrics.widthPixels
                 val viewWidth = root?.width ?: 0
