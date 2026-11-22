@@ -2,27 +2,37 @@
  * Pagaska Music Project (C) 2026
  * Licensed under GPL-3.0
  *
- * Pagaska Island is an independent implementation informed by observable
- * Android overlay behavior. It does not embed Auralys/DAPZ decompiled code.
+ * Pagaska Island is an independent Android overlay implementation.
+ * Its interaction model is inspired by common third-party music islands;
+ * it does not embed Auralys/DAPZ decompiled source.
  */
 package com.metrolist.music.playback
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import coil3.imageLoader
+import coil3.request.ImageRequest
 import com.metrolist.music.MainActivity
 import com.metrolist.music.constants.PagaskaIslandEnabledKey
 import com.metrolist.music.constants.PagaskaIslandPositionKey
@@ -35,26 +45,53 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Owns the system-window lifecycle for the music island.
- *
- * The overlay is deliberately driven by MusicService's existing ExoPlayer state:
- * no notification-listener permission or second playback controller is needed
- * for Pagaska Music's own playback.
+ * Owns Pagaska Island's system-window lifecycle and binds it to the existing
+ * MusicService ExoPlayer. The island never creates a second playback engine.
  */
 internal class PagaskaIslandController(
     private val context: MusicService,
     private val playerFlow: kotlinx.coroutines.flow.StateFlow<ExoPlayer?>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var player: ExoPlayer? = null
     private var root: FrameLayout? = null
     private var params: WindowManager.LayoutParams? = null
     private var enabled = false
     private var position = "TOP_CENTER"
+    private var expanded = false
+    private var userSeeking = false
+    private var coverUrl: String? = null
+    private var dragStartRawX = 0f
+    private var dragStartRawY = 0f
+    private var dragStartWindowX = 0
+    private var dragStartWindowY = 0
+    private var dragging = false
+
+    private var titleView: TextView? = null
+    private var artistView: TextView? = null
+    private var playButton: ImageButton? = null
+    private var coverView: ImageView? = null
+    private var progressView: SeekBar? = null
+    private var elapsedView: TextView? = null
+    private var durationView: TextView? = null
+    private var expandedPanel: View? = null
+    private var previousButton: ImageButton? = null
+    private var nextButton: ImageButton? = null
+
+    private val progressUpdater = object : Runnable {
+        override fun run() {
+            if (root == null) return
+            updateProgress()
+            mainHandler.postDelayed(this, 500L)
+        }
+    }
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -83,6 +120,9 @@ internal class PagaskaIslandController(
         }
     }
 
+    private fun dp(value: Int): Int =
+        (value * context.resources.displayMetrics.density).roundToInt()
+
     private fun setPlayer(next: ExoPlayer?) {
         if (player === next) return
         player?.removeListener(playerListener)
@@ -104,105 +144,194 @@ internal class PagaskaIslandController(
             removeOverlay()
             return
         }
-        if (!activePlayer.isPlaying && activePlayer.playbackState != Player.STATE_BUFFERING) {
+        if (activePlayer.playbackState == Player.STATE_IDLE ||
+            activePlayer.playbackState == Player.STATE_ENDED
+        ) {
             removeOverlay()
             return
         }
 
         val metadata = item.mediaMetadata
-        val title = metadata.title?.toString()?.takeIf(String::isNotBlank) ?: "Memutar musik"
-        val artist = metadata.artist?.toString()?.takeIf(String::isNotBlank) ?: "Pagaska Music"
+        titleView?.text = metadata.title?.toString()?.takeIf(String::isNotBlank) ?: "Memutar musik"
+        artistView?.text = metadata.artist?.toString()?.takeIf(String::isNotBlank) ?: "Pagaska Music"
+        playButton?.apply {
+            contentDescription = if (activePlayer.isPlaying) "Jeda" else "Putar"
+            setImageResource(
+                if (activePlayer.isPlaying) android.R.drawable.ic_media_pause
+                else android.R.drawable.ic_media_play,
+            )
+        }
+
+        val artwork = metadata.artworkUri?.toString()
+        if (artwork != coverUrl) {
+            coverUrl = artwork
+            coverView?.let { image ->
+                if (artwork.isNullOrBlank()) {
+                    image.setImageResource(android.R.drawable.ic_media_play)
+                } else {
+                    val request = ImageRequest.Builder(context)
+                        .data(artwork)
+                        .target(image)
+                        .build()
+                    context.imageLoader.enqueue(request)
+                }
+            }
+        }
+
         val view = root ?: createOverlay()?.also { root = it } ?: return
-        val content = view.getChildAt(0) as? LinearLayout ?: return
-        val titleView = content.findViewWithTag<TextView>("island_title")
-        val artistView = content.findViewWithTag<TextView>("island_artist")
-        val playButton = content.findViewWithTag<ImageButton>("island_play")
-        titleView?.text = title
-        artistView?.text = artist
-        playButton?.contentDescription = if (activePlayer.isPlaying) "Jeda" else "Putar"
-        playButton?.setImageResource(
-            if (activePlayer.isPlaying) android.R.drawable.ic_media_pause
-            else android.R.drawable.ic_media_play,
-        )
+        updateExpandedState()
         updateWindowPosition()
+        updateProgress()
+        if (view.parent == null) return
+        mainHandler.removeCallbacks(progressUpdater)
+        mainHandler.post(progressUpdater)
     }
 
     private fun createOverlay(): FrameLayout? {
-        val density = context.resources.displayMetrics.density
-        fun dp(value: Int) = (value * density).roundToInt()
-        val shell = FrameLayout(context)
-        val card = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(8), dp(8), dp(8))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(12, 12, 12))
-                cornerRadius = dp(28).toFloat()
-                setStroke(dp(1), Color.rgb(74, 74, 74))
-            }
-            elevation = dp(8).toFloat()
+        val shell = FrameLayout(context).apply {
+            clipChildren = false
+            clipToPadding = false
         }
 
-        val mark = TextView(context).apply {
-            text = "P"
-            textSize = 15f
-            setTextColor(Color.BLACK)
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(245, 232, 75))
-                cornerRadius = dp(14).toFloat()
-            }
+        // A solid offset plate gives the island a crisp Neo Brutalist shadow,
+        // rather than a blurred elevation/glass effect.
+        val shadowPlate = View(context).apply {
+            background = roundedRect(Color.BLACK, 8, Color.BLACK, 0)
         }
-        card.addView(mark, LinearLayout.LayoutParams(dp(30), dp(30)))
+        shell.addView(
+            shadowPlate,
+            FrameLayout.LayoutParams(-1, -1).apply {
+                rightMargin = dp(4)
+                bottomMargin = dp(4)
+            },
+        )
+
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(9), dp(8), dp(9), dp(8))
+            background = roundedRect(Color.rgb(245, 232, 75), 8, Color.BLACK, 3)
+        }
+        shell.addView(
+            card,
+            FrameLayout.LayoutParams(-2, -2).apply {
+                leftMargin = 0
+                topMargin = 0
+            },
+        )
+
+        val topRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val cover = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setImageResource(android.R.drawable.ic_media_play)
+            background = roundedRect(Color.WHITE, 5, Color.BLACK, 2)
+            clipToOutline = true
+            contentDescription = "Sampul album"
+        }
+        coverView = cover
+        topRow.addView(cover, LinearLayout.LayoutParams(dp(34), dp(34)))
 
         val labels = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(9), 0, dp(6), 0)
+            setPadding(dp(8), 0, dp(7), 0)
         }
-        labels.addView(TextView(context).apply {
-            tag = "island_title"
+        titleView = TextView(context).apply {
             text = "Pagaska Music"
-            textSize = 12f
+            textSize = 11f
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-            setTextColor(Color.WHITE)
+            setTextColor(Color.BLACK)
             typeface = Typeface.DEFAULT_BOLD
-        })
-        labels.addView(TextView(context).apply {
-            tag = "island_artist"
+        }
+        artistView = TextView(context).apply {
             text = "Sedang diputar"
-            textSize = 10f
+            textSize = 9f
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-            setTextColor(Color.LTGRAY)
-        })
-        card.addView(labels, LinearLayout.LayoutParams(dp(142), dp(38), 1f))
-
-        val previous = islandButton(android.R.drawable.ic_media_previous, "Sebelumnya", dp(34)) {
-            player?.seekToPreviousMediaItem()
+            setTextColor(Color.rgb(45, 45, 45))
         }
-        val play = islandButton(android.R.drawable.ic_media_pause, "Putar atau jeda", dp(34)) {
+        labels.addView(titleView)
+        labels.addView(artistView)
+        topRow.addView(labels, LinearLayout.LayoutParams(dp(118), dp(36), 1f))
+
+        previousButton = islandButton(
+            android.R.drawable.ic_media_previous,
+            "Sebelumnya",
+            dp(30),
+        ) { player?.seekToPreviousMediaItem() }
+        playButton = islandButton(
+            android.R.drawable.ic_media_pause,
+            "Putar atau jeda",
+            dp(32),
+        ) {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
             render()
-        }.apply { tag = "island_play" }
-        val next = islandButton(android.R.drawable.ic_media_next, "Berikutnya", dp(34)) {
-            player?.seekToNextMediaItem()
         }
-        card.addView(previous)
-        card.addView(play)
-        card.addView(next)
-        shell.addView(card, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+        nextButton = islandButton(
+            android.R.drawable.ic_media_next,
+            "Berikutnya",
+            dp(30),
+        ) { player?.seekToNextMediaItem() }
+        topRow.addView(previousButton)
+        topRow.addView(playButton)
+        topRow.addView(nextButton)
+        card.addView(topRow)
 
-        shell.setOnClickListener {
-            runCatching {
-                context.startActivity(
-                    Intent(context, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
-                )
-            }
+        val details = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(8), dp(2), 0)
         }
+        val timeRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        elapsedView = timeLabel("0:00")
+        durationView = timeLabel("0:00")
+        timeRow.addView(elapsedView, LinearLayout.LayoutParams(0, -2, 1f))
+        timeRow.addView(durationView)
+        details.addView(timeRow)
+
+        progressView = SeekBar(context).apply {
+            max = 1000
+            progressTintList = ColorStateList.valueOf(Color.BLACK)
+            progressBackgroundTintList = ColorStateList.valueOf(Color.argb(90, 0, 0, 0))
+            thumbTintList = ColorStateList.valueOf(Color.BLACK)
+            setPadding(0, 0, 0, 0)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                    if (fromUser) elapsedView?.text = formatTime(
+                        ((player?.duration?.coerceAtLeast(0L) ?: 0L) * progress / 1000L),
+                    )
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar) {
+                    userSeeking = true
+                }
+
+                override fun onStopTrackingTouch(seekBar: SeekBar) {
+                    val duration = player?.duration ?: 0L
+                    if (duration > 0L) player?.seekTo(duration * seekBar.progress / 1000L)
+                    userSeeking = false
+                    updateProgress()
+                }
+            })
+        }
+        details.addView(progressView, LinearLayout.LayoutParams(-1, dp(28)))
+        expandedPanel = details
+        card.addView(details)
+
+        card.setOnClickListener { setExpanded(!expanded) }
+        card.setOnLongClickListener {
+            openMainActivity()
+            true
+        }
+        card.setOnTouchListener { _, event -> handleDrag(event) }
+
         val layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -216,7 +345,8 @@ internal class PagaskaIslandController(
             y = dp(6)
             setTitle("PagaskaIsland")
             if (android.os.Build.VERSION.SDK_INT >= 28) {
-                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
         params = layoutParams
@@ -229,6 +359,72 @@ internal class PagaskaIslandController(
         }
     }
 
+    private fun setExpanded(value: Boolean) {
+        if (expanded == value) return
+        expanded = value
+        updateExpandedState()
+    }
+
+    private fun updateExpandedState() {
+        val panel = expandedPanel ?: return
+        panel.visibility = if (expanded) View.VISIBLE else View.GONE
+        previousButton?.visibility = if (expanded) View.VISIBLE else View.GONE
+        nextButton?.visibility = if (expanded) View.VISIBLE else View.GONE
+        coverView?.let {
+            val size = if (expanded) dp(42) else dp(34)
+            it.layoutParams = it.layoutParams.apply {
+                width = size
+                height = size
+            }
+        }
+        root?.let { view ->
+            view.post {
+                params?.let { runCatching { windowManager.updateViewLayout(view, it) } }
+            }
+        }
+    }
+
+    private fun updateProgress() {
+        val activePlayer = player ?: return
+        val duration = activePlayer.duration.takeIf { it > 0L } ?: 0L
+        val current = activePlayer.currentPosition.coerceAtLeast(0L)
+        if (!userSeeking) {
+            progressView?.progress = if (duration > 0L) {
+                ((current * 1000L) / duration).toInt().coerceIn(0, 1000)
+            } else {
+                0
+            }
+            elapsedView?.text = formatTime(current)
+        }
+        durationView?.text = formatTime(duration)
+        progressView?.isEnabled = duration > 0L
+    }
+
+    private fun formatTime(milliseconds: Long): String {
+        val totalSeconds = max(0L, milliseconds / 1000L)
+        val minutes = totalSeconds / 60L
+        val seconds = totalSeconds % 60L
+        return "$minutes:${seconds.toString().padStart(2, '0')}"
+    }
+
+    private fun timeLabel(value: String) = TextView(context).apply {
+        text = value
+        textSize = 9f
+        setTextColor(Color.BLACK)
+        typeface = Typeface.MONOSPACE
+    }
+
+    private fun roundedRect(
+        fill: Int,
+        radiusDp: Int,
+        stroke: Int,
+        strokeDp: Int,
+    ) = GradientDrawable().apply {
+        setColor(fill)
+        cornerRadius = dp(radiusDp).toFloat()
+        if (strokeDp > 0) setStroke(dp(strokeDp), stroke)
+    }
+
     private fun islandButton(
         icon: Int,
         description: String,
@@ -237,24 +433,69 @@ internal class PagaskaIslandController(
     ): ImageButton = ImageButton(context).apply {
         contentDescription = description
         setImageResource(icon)
-        setColorFilter(Color.WHITE)
-        background = null
-        setPadding(0, 0, 0, 0)
+        setColorFilter(Color.BLACK)
+        background = roundedRect(Color.WHITE, 5, Color.BLACK, 2)
+        setPadding(dp(5), dp(5), dp(5), dp(5))
         setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(size, size)
+        layoutParams = LinearLayout.LayoutParams(size, size).apply {
+            marginStart = dp(3)
+        }
+    }
+
+    private fun handleDrag(event: MotionEvent): Boolean {
+        val window = params ?: return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                dragStartRawX = event.rawX
+                dragStartRawY = event.rawY
+                dragStartWindowX = window.x
+                dragStartWindowY = window.y
+                dragging = false
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = (event.rawX - dragStartRawX).roundToInt()
+                val dy = (event.rawY - dragStartRawY).roundToInt()
+                val slop = ViewConfiguration.get(context).scaledTouchSlop
+                if (!dragging && (abs(dx) > slop || abs(dy) > slop)) dragging = true
+                if (dragging) {
+                    window.gravity = Gravity.TOP or Gravity.START
+                    window.x = dragStartWindowX + dx
+                    window.y = (dragStartWindowY + dy).coerceAtLeast(0)
+                    root?.let { runCatching { windowManager.updateViewLayout(it, window) } }
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (!dragging && event.actionMasked == MotionEvent.ACTION_UP) {
+                    setExpanded(!expanded)
+                }
+                return true
+            }
+        }
+        return true
+    }
+
+    private fun openMainActivity() {
+        runCatching {
+            context.startActivity(
+                Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
+        }
     }
 
     private fun updateWindowPosition() {
         val view = root ?: return
         val window = params ?: return
-        val density = context.resources.displayMetrics.density
+        if (dragging) return
         window.gravity = Gravity.TOP or (when (position) {
             "TOP_LEFT" -> Gravity.START
             "TOP_RIGHT" -> Gravity.END
             else -> Gravity.CENTER_HORIZONTAL
         })
-        window.x = if (position == "TOP_CENTER") 0 else (12 * density).roundToInt()
-        window.y = (6 * density).roundToInt()
+        window.x = if (position == "TOP_CENTER") 0 else dp(12)
+        window.y = dp(6)
         runCatching { windowManager.updateViewLayout(view, window) }
     }
 
@@ -262,6 +503,20 @@ internal class PagaskaIslandController(
         val view = root ?: return
         root = null
         params = null
+        mainHandler.removeCallbacks(progressUpdater)
+        expanded = false
+        userSeeking = false
+        coverUrl = null
+        titleView = null
+        artistView = null
+        playButton = null
+        coverView = null
+        progressView = null
+        elapsedView = null
+        durationView = null
+        expandedPanel = null
+        previousButton = null
+        nextButton = null
         runCatching { windowManager.removeViewImmediate(view) }
     }
 
