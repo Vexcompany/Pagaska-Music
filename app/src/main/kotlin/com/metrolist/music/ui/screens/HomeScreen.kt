@@ -148,6 +148,9 @@ import com.metrolist.music.ui.component.SongListItem
 import com.metrolist.music.ui.component.SpeedDialGridItem
 import com.metrolist.music.ui.component.YouTubeGridItem
 import com.metrolist.music.ui.component.YouTubeListItem
+import com.metrolist.music.ui.theme.NeoBrutalismPalette
+import com.metrolist.music.ui.theme.NeoBrutalismMetrics
+import com.metrolist.music.ui.theme.neoPanel
 import com.metrolist.music.ui.component.shimmer.GridItemPlaceHolder
 import com.metrolist.music.ui.component.shimmer.ShimmerHost
 import com.metrolist.music.ui.component.shimmer.TextPlaceholder
@@ -231,12 +234,18 @@ fun CommunityPlaylistCard(
         modifier =
             modifier
                 .width(320.dp)
-                .height(420.dp),
+                .height(420.dp)
+                .neoPanel(
+                    surface = containerColor,
+                    outline = NeoBrutalismPalette.Ink,
+                    shadow = NeoBrutalismPalette.Ink,
+                    shadowOffset = NeoBrutalismMetrics.ShadowOffset,
+                ),
         colors =
             CardDefaults.cardColors(
-                containerColor = containerColor,
+                containerColor = Color.Transparent,
             ),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(NeoBrutalismMetrics.Corner),
         onClick = onClick,
     ) {
         Column(
