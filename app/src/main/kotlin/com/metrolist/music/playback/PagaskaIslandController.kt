@@ -166,6 +166,7 @@ internal class PagaskaIslandController(
         }
 
         val artwork = metadata.artworkUri?.toString()
+        val view = root ?: createOverlay()?.also { root = it } ?: return
         if (artwork != coverUrl) {
             coverUrl = artwork
             coverView?.let { image ->
@@ -180,8 +181,6 @@ internal class PagaskaIslandController(
                 }
             }
         }
-
-        val view = root ?: createOverlay()?.also { root = it } ?: return
         updateExpandedState()
         updateWindowPosition()
         updateProgress()
