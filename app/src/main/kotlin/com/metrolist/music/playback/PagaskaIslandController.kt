@@ -277,7 +277,7 @@ internal class PagaskaIslandController(
             render()
         }
         minimizeButton = islandButton(
-            android.R.drawable.ic_menu_close_clear_cancel,
+            android.R.drawable.arrow_down_float,
             "Minimalkan Pagaska Island",
             dp(28),
         ) { minimizeIsland() }
@@ -415,8 +415,14 @@ internal class PagaskaIslandController(
         shell.addView(bubble, FrameLayout.LayoutParams(dp(56), dp(56)))
         val savedX = islandPrefs.getInt("bubble_x", -1)
         val savedY = islandPrefs.getInt("bubble_y", -1)
-        bubble.translationX = if (savedX >= 0) savedX.toFloat() else 0f
-        bubble.translationY = if (savedY >= 0) savedY.toFloat() else dp(120).toFloat()
+        params?.let { window ->
+            window.gravity = Gravity.TOP or Gravity.START
+            window.x = if (savedX >= 0) savedX else
+                (context.resources.displayMetrics.widthPixels - dp(70)).coerceAtLeast(0)
+            window.y = if (savedY >= 0) savedY else dp(140)
+        }
+        bubble.translationX = 0f
+        bubble.translationY = 0f
         shell.post { params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
     }
 
@@ -425,8 +431,8 @@ internal class PagaskaIslandController(
             MotionEvent.ACTION_DOWN -> {
                 bubbleStartX = event.rawX
                 bubbleStartY = event.rawY
-                bubbleStartLeft = (bubbleView?.translationX ?: 0f).roundToInt()
-                bubbleStartTop = (bubbleView?.translationY ?: 0f).roundToInt()
+                bubbleStartLeft = params?.x ?: 0
+                bubbleStartTop = params?.y ?: 0
                 bubbleDragging = false
                 return true
             }
@@ -436,25 +442,26 @@ internal class PagaskaIslandController(
                 val slop = ViewConfiguration.get(context).scaledTouchSlop
                 if (!bubbleDragging && (abs(dx) > slop || abs(dy) > slop)) bubbleDragging = true
                 if (bubbleDragging) {
-                    val view = bubbleView ?: return true
+                    val window = params ?: return true
                     val width = context.resources.displayMetrics.widthPixels
                     val height = context.resources.displayMetrics.heightPixels
-                    view.translationX = (bubbleStartLeft + dx).coerceIn(0, (width - dp(56)).coerceAtLeast(0)).toFloat()
-                    view.translationY = (bubbleStartTop + dy).coerceIn(dp(24), (height - dp(100)).coerceAtLeast(dp(24))).toFloat()
-                    root?.let { shell -> params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
+                    window.x = (bubbleStartLeft + dx).coerceIn(0, (width - dp(56)).coerceAtLeast(0))
+                    window.y = (bubbleStartTop + dy).coerceIn(dp(24), (height - dp(100)).coerceAtLeast(dp(24)))
+                    root?.let { shell -> runCatching { windowManager.updateViewLayout(shell, window) } }
                 }
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (bubbleDragging) {
-                    val view = bubbleView
-                    if (view != null) {
+                    val window = params
+                    if (window != null) {
                         val width = context.resources.displayMetrics.widthPixels
-                        val targetX = if (view.translationX + dp(28) < width / 2f) dp(6) else width - dp(62)
-                        view.animate().translationX(targetX.toFloat()).setDuration(140L).start()
+                        val targetX = if (window.x + dp(28) < width / 2) dp(6) else width - dp(62)
+                        window.x = targetX.coerceAtLeast(0)
+                        root?.let { shell -> runCatching { windowManager.updateViewLayout(shell, window) } }
                         islandPrefs.edit()
-                            .putInt("bubble_x", targetX)
-                            .putInt("bubble_y", view.translationY.roundToInt())
+                            .putInt("bubble_x", window.x)
+                            .putInt("bubble_y", window.y)
                             .apply()
                     }
                 } else if (event.actionMasked == MotionEvent.ACTION_UP) {
@@ -609,7 +616,7 @@ internal class PagaskaIslandController(
     private fun updateWindowPosition() {
         val view = root ?: return
         val window = params ?: return
-        if (dragging || hasUserPosition) return
+        if (dragging || hasUserPosition || minimized) return
         window.gravity = Gravity.TOP or (when (position) {
             "TOP_LEFT" -> Gravity.START
             "TOP_RIGHT" -> Gravity.END
