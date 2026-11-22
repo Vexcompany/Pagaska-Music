@@ -73,6 +73,8 @@ internal class PagaskaIslandController(
     private var dragStartWindowX = 0
     private var dragStartWindowY = 0
     private var dragging = false
+    private var hasUserPosition = false
+    private var dragStartLeft = 0
 
     private var titleView: TextView? = null
     private var artistView: TextView? = null
@@ -109,6 +111,7 @@ internal class PagaskaIslandController(
                 Triple(pref.first, pref.second, activePlayer)
             }.collect { (isEnabled, islandPosition, activePlayer) ->
                 enabled = isEnabled
+                if (position != islandPosition) hasUserPosition = false
                 position = islandPosition
                 setPlayer(activePlayer)
                 if (!enabled || !Settings.canDrawOverlays(context)) {
@@ -450,6 +453,13 @@ internal class PagaskaIslandController(
                 dragStartRawY = event.rawY
                 dragStartWindowX = window.x
                 dragStartWindowY = window.y
+                val screenWidth = context.resources.displayMetrics.widthPixels
+                val viewWidth = root?.width ?: 0
+                dragStartLeft = when (window.gravity and Gravity.HORIZONTAL_GRAVITY_MASK) {
+                    Gravity.CENTER_HORIZONTAL -> (screenWidth - viewWidth) / 2 + window.x
+                    Gravity.END -> screenWidth - viewWidth - window.x
+                    else -> window.x
+                }
                 dragging = false
                 return true
             }
@@ -460,15 +470,22 @@ internal class PagaskaIslandController(
                 if (!dragging && (abs(dx) > slop || abs(dy) > slop)) dragging = true
                 if (dragging) {
                     window.gravity = Gravity.TOP or Gravity.START
-                    window.x = dragStartWindowX + dx
+                    window.x = (dragStartLeft + dx).coerceAtLeast(0)
                     window.y = (dragStartWindowY + dy).coerceAtLeast(0)
                     root?.let { runCatching { windowManager.updateViewLayout(it, window) } }
                 }
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (!dragging && event.actionMasked == MotionEvent.ACTION_UP) {
-                    setExpanded(!expanded)
+                if (dragging) {
+                    hasUserPosition = true
+                    dragging = false
+                } else if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    if (event.eventTime - event.downTime >= ViewConfiguration.getLongPressTimeout()) {
+                        openMainActivity()
+                    } else {
+                        setExpanded(!expanded)
+                    }
                 }
                 return true
             }
@@ -488,7 +505,7 @@ internal class PagaskaIslandController(
     private fun updateWindowPosition() {
         val view = root ?: return
         val window = params ?: return
-        if (dragging) return
+        if (dragging || hasUserPosition) return
         window.gravity = Gravity.TOP or (when (position) {
             "TOP_LEFT" -> Gravity.START
             "TOP_RIGHT" -> Gravity.END
@@ -506,6 +523,8 @@ internal class PagaskaIslandController(
         mainHandler.removeCallbacks(progressUpdater)
         expanded = false
         userSeeking = false
+        dragging = false
+        hasUserPosition = false
         coverUrl = null
         titleView = null
         artistView = null
