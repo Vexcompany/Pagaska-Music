@@ -394,6 +394,14 @@ internal class PagaskaIslandController(
         islandCard?.visibility = View.GONE
         bubbleView?.let { existing ->
             existing.visibility = View.VISIBLE
+            params?.let { window ->
+                window.gravity = Gravity.TOP or Gravity.START
+                val savedX = islandPrefs.getInt("bubble_x", -1)
+                val savedY = islandPrefs.getInt("bubble_y", -1)
+                window.x = if (savedX >= 0) savedX else
+                    (context.resources.displayMetrics.widthPixels - dp(70)).coerceAtLeast(0)
+                window.y = if (savedY >= 0) savedY else dp(140)
+            }
             shell.post { params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
             return
         }
