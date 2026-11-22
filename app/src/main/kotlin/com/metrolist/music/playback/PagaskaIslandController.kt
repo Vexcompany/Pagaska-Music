@@ -69,6 +69,7 @@ internal class PagaskaIslandController(
     private var minimized = false
     private var islandCard: View? = null
     private var bubbleView: View? = null
+    private var bubbleCoverView: ImageView? = null
     private var minimizeButton: ImageButton? = null
     private var bubbleStartX = 0f
     private var bubbleStartY = 0f
@@ -179,7 +180,7 @@ internal class PagaskaIslandController(
         val view = root ?: createOverlay()?.also { root = it } ?: return
         if (artwork != coverUrl) {
             coverUrl = artwork
-            coverView?.let { image ->
+            listOfNotNull(coverView, bubbleCoverView).forEach { image ->
                 if (artwork.isNullOrBlank()) {
                     image.setImageResource(android.R.drawable.ic_media_play)
                 } else {
@@ -406,6 +407,7 @@ internal class PagaskaIslandController(
                 clipToOutline = true
                 background = roundedRect(Color.WHITE, 50, Color.BLACK, 1)
             }
+            bubbleCoverView = art
             coverUrl?.takeIf(String::isNotBlank)?.let { url ->
                 context.imageLoader.enqueue(ImageRequest.Builder(context).data(url).target(art).build())
             }
@@ -640,6 +642,7 @@ internal class PagaskaIslandController(
         hasUserPosition = false
         islandCard = null
         bubbleView = null
+        bubbleCoverView = null
         minimizeButton = null
         coverUrl = null
         titleView = null
