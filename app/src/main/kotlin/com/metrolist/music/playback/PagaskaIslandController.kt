@@ -381,6 +381,7 @@ internal class PagaskaIslandController(
     }
 
     private fun showIslandCard() {
+        root?.background = roundedRect(Color.BLACK, 8, Color.BLACK, 0)
         islandCard?.visibility = View.VISIBLE
         bubbleView?.visibility = View.GONE
         root?.post { root?.let { view -> params?.let { runCatching { windowManager.updateViewLayout(view, it) } } } }
@@ -388,6 +389,7 @@ internal class PagaskaIslandController(
 
     private fun showBubble() {
         val shell = root ?: return
+        shell.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         islandCard?.visibility = View.GONE
         bubbleView?.let { existing ->
             existing.visibility = View.VISIBLE
