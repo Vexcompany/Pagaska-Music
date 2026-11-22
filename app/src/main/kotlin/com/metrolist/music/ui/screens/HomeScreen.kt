@@ -7,6 +7,7 @@ package com.metrolist.music.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -245,6 +246,7 @@ fun CommunityPlaylistCard(
             CardDefaults.cardColors(
                 containerColor = Color.Transparent,
             ),
+        border = BorderStroke(NeoBrutalismMetrics.Border, NeoBrutalismPalette.Ink),
         shape = RoundedCornerShape(NeoBrutalismMetrics.Corner),
         onClick = onClick,
     ) {
