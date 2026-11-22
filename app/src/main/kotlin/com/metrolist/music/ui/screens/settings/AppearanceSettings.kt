@@ -8,7 +8,6 @@ package com.metrolist.music.ui.screens.settings
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.border
@@ -39,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -184,10 +184,9 @@ fun AppearanceSettings(
             defaultValue = MiniPlayerBackgroundStyle.DEFAULT,
         )
 
-    val availableMiniPlayerBackgroundStyles =
-        MiniPlayerBackgroundStyle.entries.filter {
-            it != MiniPlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-        }
+    // Pagaska now uses one consistent Neo Brutalist player surface.
+    // Migrate legacy blur/gradient/transparent preferences to the shared theme.
+    val availableMiniPlayerBackgroundStyles = listOf(MiniPlayerBackgroundStyle.DEFAULT)
 
     var showMiniPlayerBackgroundDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -211,6 +210,17 @@ fun AppearanceSettings(
             PlayerBackgroundStyleKey,
             defaultValue = PlayerBackgroundStyle.DEFAULT,
         )
+
+    LaunchedEffect(playerBackground) {
+        if (playerBackground != PlayerBackgroundStyle.DEFAULT) {
+            onPlayerBackgroundChange(PlayerBackgroundStyle.DEFAULT)
+        }
+    }
+    LaunchedEffect(miniPlayerBackground) {
+        if (miniPlayerBackground != MiniPlayerBackgroundStyle.DEFAULT) {
+            onMiniPlayerBackgroundChange(MiniPlayerBackgroundStyle.DEFAULT)
+        }
+    }
 
     val (defaultOpenTab, onDefaultOpenTabChange) =
         rememberEnumPreference(
@@ -351,10 +361,7 @@ fun AppearanceSettings(
             defaultValue = true,
         )
 
-    val availableBackgroundStyles =
-        PlayerBackgroundStyle.entries.filter {
-            it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-        }
+    val availableBackgroundStyles = listOf(PlayerBackgroundStyle.DEFAULT)
 
     val (defaultChip, onDefaultChipChange) =
         rememberEnumPreference(
