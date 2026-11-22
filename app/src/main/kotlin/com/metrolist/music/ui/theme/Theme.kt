@@ -24,7 +24,7 @@ import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 import com.materialkolor.score.Score
 
-val DefaultThemeColor = Color(0xFFF5E84B)
+val DefaultThemeColor = NeoBrutalismPalette.Yellow
 
 @Composable
 fun MetrolistTheme(
@@ -44,29 +44,29 @@ fun MetrolistTheme(
     // colors. System mode changes only the light/dark surface treatment.
     val brutalScheme = remember(baseColorScheme, darkTheme) {
         baseColorScheme.copy(
-            primary = Color(0xFFF5E84B),
+            primary = NeoBrutalismPalette.Yellow,
             onPrimary = Color(0xFF111111),
             primaryContainer = Color(0xFFE6D82F),
             onPrimaryContainer = Color(0xFF111111),
-            secondary = Color(0xFFB8F35A),
+            secondary = NeoBrutalismPalette.Lime,
             onSecondary = Color(0xFF111111),
             secondaryContainer = Color(0xFF9BD83D),
             onSecondaryContainer = Color(0xFF111111),
-            tertiary = Color(0xFFFF70A6),
+            tertiary = NeoBrutalismPalette.Pink,
             onTertiary = Color(0xFF111111),
-            surface = if (darkTheme) Color(0xFF171717) else Color(0xFFFFFEF8),
-            surfaceDim = if (darkTheme) Color(0xFF101010) else Color(0xFFECE9DF),
-            surfaceBright = if (darkTheme) Color(0xFF292929) else Color(0xFFFFFEF8),
-            surfaceContainerLowest = if (darkTheme) Color(0xFF0B0B0B) else Color(0xFFFFFFFF),
+            surface = if (darkTheme) NeoBrutalismPalette.PaperDark else NeoBrutalismPalette.White,
+            surfaceDim = if (darkTheme) Color(0xFF101010) else NeoBrutalismPalette.Muted,
+            surfaceBright = if (darkTheme) Color(0xFF292929) else NeoBrutalismPalette.White,
+            surfaceContainerLowest = if (darkTheme) Color(0xFF0B0B0B) else NeoBrutalismPalette.Panel,
             surfaceContainerLow = if (darkTheme) Color(0xFF141414) else Color(0xFFF8F5EA),
             surfaceContainer = if (darkTheme) Color(0xFF1B1B1B) else Color(0xFFF1EEE3),
-            surfaceContainerHigh = if (darkTheme) Color(0xFF242424) else Color(0xFFEAE7DC),
-            surfaceContainerHighest = if (darkTheme) Color(0xFF303030) else Color(0xFFE2DFD4),
-            background = if (darkTheme) Color(0xFF101010) else Color(0xFFFFFDF5),
-            onSurface = if (darkTheme) Color(0xFFF8F6E9) else Color(0xFF171717),
+            surfaceContainerHigh = if (darkTheme) NeoBrutalismPalette.PanelDark else Color(0xFFEAE7DC),
+            surfaceContainerHighest = if (darkTheme) NeoBrutalismPalette.MutedDark else Color(0xFFE2DFD4),
+            background = if (darkTheme) Color(0xFF101010) else NeoBrutalismPalette.Paper,
+            onSurface = if (darkTheme) Color(0xFFF8F6E9) else NeoBrutalismPalette.Ink,
             onSurfaceVariant = if (darkTheme) Color(0xFFD0CEC5) else Color(0xFF45443F),
-            onBackground = if (darkTheme) Color(0xFFF8F6E9) else Color(0xFF171717),
-            outline = if (darkTheme) Color(0xFFB8B5AA) else Color(0xFF292929),
+            onBackground = if (darkTheme) Color(0xFFF8F6E9) else NeoBrutalismPalette.Ink,
+            outline = if (darkTheme) Color(0xFFB8B5AA) else NeoBrutalismPalette.Ink,
             outlineVariant = if (darkTheme) Color(0xFF55534C) else Color(0xFF77746B),
         )
     }
@@ -82,10 +82,10 @@ fun MetrolistTheme(
         typography = AppTypography,
         shapes = Shapes(
             extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(2.dp),
-            small = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-            medium = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-            large = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-            extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+            small = androidx.compose.foundation.shape.RoundedCornerShape(2.dp),
+            medium = androidx.compose.foundation.shape.RoundedCornerShape(3.dp),
+            large = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+            extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
         ),
         content = content
     )
