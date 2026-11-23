@@ -123,7 +123,10 @@ internal class PagaskaIslandController(
                 Triple(pref.first, pref.second, activePlayer)
             }.collect { (isEnabled, islandPosition, activePlayer) ->
                 enabled = isEnabled
-                if (position != islandPosition) hasUserPosition = false
+                if (position != islandPosition) {
+                    hasUserPosition = false
+                    islandPrefs.edit().remove("island_x").remove("island_y").apply()
+                }
                 position = islandPosition
                 setPlayer(activePlayer)
                 if (!enabled || !Settings.canDrawOverlays(context)) {
@@ -384,7 +387,15 @@ internal class PagaskaIslandController(
         updateWindowPosition()
     }
 
+    private fun animateOverlayChange() {
+        val container = root ?: return
+        if (android.os.Build.VERSION.SDK_INT >= 19) {
+            TransitionManager.beginDelayedTransition(container, AutoTransition().apply { duration = 210L })
+        }
+    }
+
     private fun showIslandCard() {
+        animateOverlayChange()
         root?.background = roundedRect(Color.BLACK, 8, Color.BLACK, 0)
         islandCard?.visibility = View.VISIBLE
         bubbleView?.visibility = View.GONE
@@ -393,6 +404,7 @@ internal class PagaskaIslandController(
 
     private fun showBubble() {
         val shell = root ?: return
+        animateOverlayChange()
         shell.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         islandCard?.visibility = View.GONE
         bubbleView?.let { existing ->
@@ -401,9 +413,11 @@ internal class PagaskaIslandController(
                 window.gravity = Gravity.TOP or Gravity.START
                 val savedX = islandPrefs.getInt("bubble_x", -1)
                 val savedY = islandPrefs.getInt("bubble_y", -1)
-                window.x = if (savedX >= 0) savedX else
-                    (context.resources.displayMetrics.widthPixels - dp(70)).coerceAtLeast(0)
-                window.y = if (savedY >= 0) savedY else dp(140)
+                val metrics = context.resources.displayMetrics
+                window.x = (if (savedX >= 0) savedX else (metrics.widthPixels - dp(70)).coerceAtLeast(0))
+                    .coerceIn(0, (metrics.widthPixels - dp(56)).coerceAtLeast(0))
+                window.y = (if (savedY >= 0) savedY else dp(140))
+                    .coerceIn(0, (metrics.heightPixels - dp(56)).coerceAtLeast(0))
             }
             shell.post { params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
             return
@@ -432,9 +446,11 @@ internal class PagaskaIslandController(
         val savedY = islandPrefs.getInt("bubble_y", -1)
         params?.let { window ->
             window.gravity = Gravity.TOP or Gravity.START
-            window.x = if (savedX >= 0) savedX else
-                (context.resources.displayMetrics.widthPixels - dp(70)).coerceAtLeast(0)
-            window.y = if (savedY >= 0) savedY else dp(140)
+            val metrics = context.resources.displayMetrics
+            window.x = (if (savedX >= 0) savedX else (metrics.widthPixels - dp(70)).coerceAtLeast(0))
+                .coerceIn(0, (metrics.widthPixels - dp(56)).coerceAtLeast(0))
+            window.y = (if (savedY >= 0) savedY else dp(140))
+                .coerceIn(0, (metrics.heightPixels - dp(56)).coerceAtLeast(0))
         }
         bubble.translationX = 0f
         bubble.translationY = 0f
