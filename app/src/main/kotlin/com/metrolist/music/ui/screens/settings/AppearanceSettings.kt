@@ -1033,7 +1033,7 @@ fun AppearanceSettings(
                             )
                         },
                         onClick = {
-                            if (pagaskaIslandEnabled) {
+                            if (pagaskaIslandEnabled && Settings.canDrawOverlays(activity)) {
                                 onPagaskaIslandEnabledChange(false)
                             } else if (Settings.canDrawOverlays(activity)) {
                                 onPagaskaIslandEnabledChange(true)
