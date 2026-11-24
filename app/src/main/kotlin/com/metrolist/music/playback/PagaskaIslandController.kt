@@ -8,9 +8,11 @@
  */
 package com.metrolist.music.playback
 
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -100,6 +102,20 @@ internal class PagaskaIslandController(
     private var previousButton: ImageButton? = null
     private var nextButton: ImageButton? = null
 
+
+    private val configurationCallbacks = object : ComponentCallbacks {
+        override fun onConfigurationChanged(newConfig: Configuration) {
+            mainHandler.post {
+                val view = root ?: return@post
+                view.post {
+                    if (minimized) showBubble() else updateWindowPosition()
+                }
+            }
+        }
+
+        override fun onLowMemory() = Unit
+    }
+
     private val progressUpdater = object : Runnable {
         override fun run() {
             if (root == null) return
@@ -115,6 +131,7 @@ internal class PagaskaIslandController(
     }
 
     init {
+        context.registerComponentCallbacks(configurationCallbacks)
         scope.launch {
             val preferences = context.dataStore.data.map { prefs ->
                 (prefs[PagaskaIslandEnabledKey] ?: false) to
@@ -414,11 +431,11 @@ internal class PagaskaIslandController(
                 window.gravity = Gravity.TOP or Gravity.START
                 val savedX = islandPrefs.getInt("bubble_x", -1)
                 val savedY = islandPrefs.getInt("bubble_y", -1)
-                val metrics = context.resources.displayMetrics
-                window.x = (if (savedX >= 0) savedX else (metrics.widthPixels - dp(70)).coerceAtLeast(0))
-                    .coerceIn(0, (metrics.widthPixels - dp(56)).coerceAtLeast(0))
+                val area = PagaskaIslandGeometry.read(context, windowManager, root)
+                window.x = (if (savedX >= 0) savedX else (area.widthPx - dp(70)).coerceAtLeast(0))
+                    .coerceIn(0, (area.widthPx - dp(56)).coerceAtLeast(0))
                 window.y = (if (savedY >= 0) savedY else dp(140))
-                    .coerceIn(0, (metrics.heightPixels - dp(56)).coerceAtLeast(0))
+                    .coerceIn(dp(24), (area.heightPx - dp(56)).coerceAtLeast(dp(24)))
             }
             shell.post { params?.let { runCatching { windowManager.updateViewLayout(shell, it) } } }
             return
@@ -447,11 +464,11 @@ internal class PagaskaIslandController(
         val savedY = islandPrefs.getInt("bubble_y", -1)
         params?.let { window ->
             window.gravity = Gravity.TOP or Gravity.START
-            val metrics = context.resources.displayMetrics
-            window.x = (if (savedX >= 0) savedX else (metrics.widthPixels - dp(70)).coerceAtLeast(0))
-                .coerceIn(0, (metrics.widthPixels - dp(56)).coerceAtLeast(0))
+            val area = PagaskaIslandGeometry.read(context, windowManager, root)
+            window.x = (if (savedX >= 0) savedX else (area.widthPx - dp(70)).coerceAtLeast(0))
+                .coerceIn(0, (area.widthPx - dp(56)).coerceAtLeast(0))
             window.y = (if (savedY >= 0) savedY else dp(140))
-                .coerceIn(0, (metrics.heightPixels - dp(56)).coerceAtLeast(0))
+                .coerceIn(dp(24), (area.heightPx - dp(56)).coerceAtLeast(dp(24)))
         }
         bubble.translationX = 0f
         bubble.translationY = 0f
@@ -475,10 +492,9 @@ internal class PagaskaIslandController(
                 if (!bubbleDragging && (abs(dx) > slop || abs(dy) > slop)) bubbleDragging = true
                 if (bubbleDragging) {
                     val window = params ?: return true
-                    val width = context.resources.displayMetrics.widthPixels
-                    val height = context.resources.displayMetrics.heightPixels
-                    window.x = (bubbleStartLeft + dx).coerceIn(0, (width - dp(56)).coerceAtLeast(0))
-                    window.y = (bubbleStartTop + dy).coerceIn(dp(24), (height - dp(100)).coerceAtLeast(dp(24)))
+                    val area = PagaskaIslandGeometry.read(context, windowManager, root)
+                    window.x = (bubbleStartLeft + dx).coerceIn(0, (area.widthPx - dp(56)).coerceAtLeast(0))
+                    window.y = (bubbleStartTop + dy).coerceIn(dp(24), (area.heightPx - dp(100)).coerceAtLeast(dp(24)))
                     root?.let { shell -> runCatching { windowManager.updateViewLayout(shell, window) } }
                 }
                 return true
@@ -487,11 +503,10 @@ internal class PagaskaIslandController(
                 if (bubbleDragging) {
                     val window = params
                     if (window != null) {
-                        val metrics = context.resources.displayMetrics
-                        val width = metrics.widthPixels
-                        val maxX = (width - dp(56)).coerceAtLeast(0)
-                        val maxY = (metrics.heightPixels - dp(56)).coerceAtLeast(0)
-                        val targetX = if (window.x + dp(28) < width / 2) dp(6) else maxX - dp(6)
+                        val area = PagaskaIslandGeometry.read(context, windowManager, root)
+                        val maxX = (area.widthPx - dp(56)).coerceAtLeast(0)
+                        val maxY = (area.heightPx - dp(56)).coerceAtLeast(0)
+                        val targetX = if (window.x + dp(28) < area.widthPx / 2) dp(6) else maxX - dp(6)
                         window.x = targetX.coerceIn(0, maxX)
                         window.y = window.y.coerceIn(0, maxY)
                         root?.let { shell -> runCatching { windowManager.updateViewLayout(shell, window) } }
@@ -634,12 +649,12 @@ internal class PagaskaIslandController(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (dragging) {
                     val view = root
-                    val metrics = context.resources.displayMetrics
+                    val area = PagaskaIslandGeometry.read(context, windowManager, view)
                     val viewWidth = view?.width?.takeIf { it > 0 } ?: dp(220)
                     val viewHeight = view?.height?.takeIf { it > 0 } ?: dp(72)
                     window.gravity = Gravity.TOP or Gravity.START
-                    window.x = window.x.coerceIn(0, (metrics.widthPixels - viewWidth).coerceAtLeast(0))
-                    window.y = window.y.coerceIn(0, (metrics.heightPixels - viewHeight).coerceAtLeast(0))
+                    window.x = window.x.coerceIn(0, (area.widthPx - viewWidth).coerceAtLeast(0))
+                    window.y = window.y.coerceIn(0, (area.heightPx - viewHeight).coerceAtLeast(0))
                     view?.let { runCatching { windowManager.updateViewLayout(it, window) } }
                     islandPrefs.edit().putInt("island_x", window.x).putInt("island_y", window.y).apply()
                     hasUserPosition = true
@@ -671,25 +686,28 @@ internal class PagaskaIslandController(
         val window = params ?: return
         if (dragging || minimized) return
         if (islandPrefs.contains("island_x") && islandPrefs.contains("island_y")) {
-            val metrics = context.resources.displayMetrics
+            val area = PagaskaIslandGeometry.read(context, windowManager, view)
             val viewWidth = view.width.takeIf { it > 0 } ?: dp(220)
             val viewHeight = view.height.takeIf { it > 0 } ?: dp(72)
             window.gravity = Gravity.TOP or Gravity.START
             window.x = islandPrefs.getInt("island_x", 0)
-                .coerceIn(0, (metrics.widthPixels - viewWidth).coerceAtLeast(0))
+                .coerceIn(0, (area.widthPx - viewWidth).coerceAtLeast(0))
             window.y = islandPrefs.getInt("island_y", dp(6))
-                .coerceIn(0, (metrics.heightPixels - viewHeight).coerceAtLeast(0))
+                .coerceIn(0, (area.heightPx - viewHeight).coerceAtLeast(0))
             runCatching { windowManager.updateViewLayout(view, window) }
             return
         }
         if (hasUserPosition) return
-        window.gravity = Gravity.TOP or (when (position) {
-            "TOP_LEFT" -> Gravity.START
-            "TOP_RIGHT" -> Gravity.END
-            else -> Gravity.CENTER_HORIZONTAL
-        })
-        window.x = if (position == "TOP_CENTER") 0 else dp(12)
-        window.y = dp(6)
+        val area = PagaskaIslandGeometry.read(context, windowManager, view)
+        val viewWidth = view.width.takeIf { it > 0 } ?: dp(220)
+        window.gravity = Gravity.TOP or Gravity.START
+        window.x = when (position) {
+            "TOP_LEFT" -> dp(12)
+            "TOP_RIGHT" -> (area.widthPx - viewWidth - dp(12)).coerceAtLeast(0)
+            else -> ((area.topCutout?.centerX() ?: (area.widthPx / 2)) - viewWidth / 2)
+                .coerceIn(0, (area.widthPx - viewWidth).coerceAtLeast(0))
+        }
+        window.y = area.topCutout?.top?.coerceAtLeast(0) ?: dp(6)
         runCatching { windowManager.updateViewLayout(view, window) }
     }
 
@@ -721,6 +739,7 @@ internal class PagaskaIslandController(
     }
 
     fun release() {
+        context.unregisterComponentCallbacks(configurationCallbacks)
         player?.removeListener(playerListener)
         player = null
         removeOverlay()
