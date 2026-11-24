@@ -10,6 +10,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -151,6 +153,27 @@ fun AppearanceSettings(
             defaultValue = true,
         )
     val iconContext = LocalContext.current
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        // Settings activities may return RESULT_CANCELED even after a successful
+        // permission change, so inspect the actual permission state.
+        onPagaskaIslandEnabledChange(Settings.canDrawOverlays(activity))
+    }
+    val requestPagaskaOverlayPermission = {
+        overlayPermissionLauncher.launch(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${activity.packageName}"),
+            ),
+        )
+    }
+    LaunchedEffect(Unit) {
+        // Reconcile a stale enabled preference if access was revoked in Android Settings.
+        if (pagaskaIslandEnabled && !Settings.canDrawOverlays(activity)) {
+            onPagaskaIslandEnabledChange(false)
+        }
+    }
     val onEnableDynamicIconChange: (Boolean) -> Unit = { newValue ->
         onEnableDynamicIconPrefChange(newValue)
         IconUtils.setIcon(iconContext, newValue)
@@ -997,18 +1020,14 @@ fun AppearanceSettings(
                         },
                         trailingContent = {
                             Switch(
-                                checked = pagaskaIslandEnabled,
+                                checked = pagaskaIslandEnabled && Settings.canDrawOverlays(activity),
                                 onCheckedChange = { enabled ->
                                     if (!enabled) {
                                         onPagaskaIslandEnabledChange(false)
-                                    } else if (Settings.canDrawOverlays(iconContext)) {
+                                    } else if (Settings.canDrawOverlays(activity)) {
                                         onPagaskaIslandEnabledChange(true)
                                     } else {
-                                        val intent = Intent(
-                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                            Uri.parse("package:${iconContext.packageName}"),
-                                        )
-                                        iconContext.startActivity(intent)
+                                        requestPagaskaOverlayPermission()
                                     }
                                 },
                             )
@@ -1016,15 +1035,10 @@ fun AppearanceSettings(
                         onClick = {
                             if (pagaskaIslandEnabled) {
                                 onPagaskaIslandEnabledChange(false)
-                            } else if (Settings.canDrawOverlays(iconContext)) {
+                            } else if (Settings.canDrawOverlays(activity)) {
                                 onPagaskaIslandEnabledChange(true)
                             } else {
-                                iconContext.startActivity(
-                                    Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${iconContext.packageName}"),
-                                    )
-                                )
+                                requestPagaskaOverlayPermission()
                             }
                         },
                     ),
