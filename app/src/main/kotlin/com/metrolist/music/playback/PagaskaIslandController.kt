@@ -654,8 +654,6 @@ internal class PagaskaIslandController(
         mainHandler.removeCallbacks(progressUpdater)
         expanded = false
         userSeeking = false
-        dragging = false
-        hasUserPosition = false
         islandCard = null
         bubbleView = null
         bubbleCoverView = null
