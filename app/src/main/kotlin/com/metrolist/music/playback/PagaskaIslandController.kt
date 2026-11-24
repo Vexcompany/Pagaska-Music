@@ -84,12 +84,6 @@ internal class PagaskaIslandController(
     private val islandPrefs by lazy { context.getSharedPreferences("pagaska_island_overlay", Context.MODE_PRIVATE) }
     private var userSeeking = false
     private var coverUrl: String? = null
-    private var dragStartRawX = 0f
-    private var dragStartRawY = 0f
-    private var dragStartWindowY = 0
-    private var dragging = false
-    private var hasUserPosition = false
-    private var dragStartLeft = 0
 
     private var titleView: TextView? = null
     private var artistView: TextView? = null
@@ -142,7 +136,6 @@ internal class PagaskaIslandController(
             }.collect { (isEnabled, islandPosition, activePlayer) ->
                 enabled = isEnabled
                 if (position != islandPosition) {
-                    hasUserPosition = false
                     islandPrefs.edit().remove("island_x").remove("island_y").apply()
                 }
                 position = islandPosition
@@ -359,8 +352,8 @@ internal class PagaskaIslandController(
         expandedPanel = details
         card.addView(details)
 
-        // The card handles gestures on its empty surface; child controls retain touch ownership.
-        card.setOnTouchListener { _, event -> handleDrag(event) }
+        // The full island stays anchored; only the minimized bubble is draggable.
+        card.setOnClickListener { setExpanded(!expanded) }
 
         val layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -616,62 +609,6 @@ internal class PagaskaIslandController(
         }
     }
 
-    private fun handleDrag(event: MotionEvent): Boolean {
-        val window = params ?: return false
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                dragStartRawX = event.rawX
-                dragStartRawY = event.rawY
-                dragStartWindowY = window.y
-                val screenWidth = context.resources.displayMetrics.widthPixels
-                val viewWidth = root?.width ?: 0
-                dragStartLeft = when (window.gravity and Gravity.HORIZONTAL_GRAVITY_MASK) {
-                    Gravity.CENTER_HORIZONTAL -> (screenWidth - viewWidth) / 2 + window.x
-                    Gravity.END -> screenWidth - viewWidth - window.x
-                    else -> window.x
-                }
-                dragging = false
-                return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val dx = (event.rawX - dragStartRawX).roundToInt()
-                val dy = (event.rawY - dragStartRawY).roundToInt()
-                val slop = ViewConfiguration.get(context).scaledTouchSlop
-                if (!dragging && (abs(dx) > slop || abs(dy) > slop)) dragging = true
-                if (dragging) {
-                    window.gravity = Gravity.TOP or Gravity.START
-                    window.x = (dragStartLeft + dx).coerceAtLeast(0)
-                    window.y = (dragStartWindowY + dy).coerceAtLeast(0)
-                    root?.let { runCatching { windowManager.updateViewLayout(it, window) } }
-                }
-                return true
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (dragging) {
-                    val view = root
-                    val area = PagaskaIslandGeometry.read(context, windowManager, view)
-                    val viewWidth = view?.width?.takeIf { it > 0 } ?: dp(220)
-                    val viewHeight = view?.height?.takeIf { it > 0 } ?: dp(72)
-                    window.gravity = Gravity.TOP or Gravity.START
-                    window.x = window.x.coerceIn(0, (area.widthPx - viewWidth).coerceAtLeast(0))
-                    window.y = window.y.coerceIn(0, (area.heightPx - viewHeight).coerceAtLeast(0))
-                    view?.let { runCatching { windowManager.updateViewLayout(it, window) } }
-                    islandPrefs.edit().putInt("island_x", window.x).putInt("island_y", window.y).apply()
-                    hasUserPosition = true
-                    dragging = false
-                } else if (event.actionMasked == MotionEvent.ACTION_UP) {
-                    if (event.eventTime - event.downTime >= ViewConfiguration.getLongPressTimeout()) {
-                        openMainActivity()
-                    } else {
-                        setExpanded(!expanded)
-                    }
-                }
-                return true
-            }
-        }
-        return true
-    }
-
     private fun openMainActivity() {
         runCatching {
             context.startActivity(
@@ -684,7 +621,7 @@ internal class PagaskaIslandController(
     private fun updateWindowPosition() {
         val view = root ?: return
         val window = params ?: return
-        if (dragging || minimized) return
+        if (minimized) return
         if (islandPrefs.contains("island_x") && islandPrefs.contains("island_y")) {
             val area = PagaskaIslandGeometry.read(context, windowManager, view)
             val viewWidth = view.width.takeIf { it > 0 } ?: dp(220)
@@ -697,7 +634,6 @@ internal class PagaskaIslandController(
             runCatching { windowManager.updateViewLayout(view, window) }
             return
         }
-        if (hasUserPosition) return
         val area = PagaskaIslandGeometry.read(context, windowManager, view)
         val viewWidth = view.width.takeIf { it > 0 } ?: dp(220)
         window.gravity = Gravity.TOP or Gravity.START
