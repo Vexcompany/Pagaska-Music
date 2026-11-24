@@ -35,6 +35,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import coil3.imageLoader
 import coil3.request.ImageRequest
+import coil3.request.target
 import com.metrolist.music.MainActivity
 import com.metrolist.music.constants.PagaskaIslandEnabledKey
 import com.metrolist.music.constants.PagaskaIslandPositionKey
