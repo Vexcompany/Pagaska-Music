@@ -6,12 +6,10 @@
 package com.metrolist.music.ui.theme
 
 import android.graphics.Bitmap
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
@@ -19,14 +17,14 @@ import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.palette.graphics.Palette
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 import com.materialkolor.score.Score
 
-val DefaultThemeColor = Color(0xFFED5564)
+val DefaultThemeColor = NeoBrutalismPalette.Yellow
 
 @Composable
 fun MetrolistTheme(
@@ -35,40 +33,41 @@ fun MetrolistTheme(
     themeColor: Color = DefaultThemeColor,
     content: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
-    // Determine if system dynamic colors should be used (Android S+ and default theme color)
-    val useSystemDynamicColor = (themeColor == DefaultThemeColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+    val baseColorScheme = rememberDynamicColorScheme(
+        seedColor = themeColor,
+        isDark = darkTheme,
+        specVersion = ColorSpec.SpecVersion.SPEC_2025,
+        style = PaletteStyle.TonalSpot,
+    )
 
-    // Select the appropriate color scheme generation method
-    val baseColorScheme = if (useSystemDynamicColor) {
-        // Use standard Material 3 dynamic color functions for system wallpaper colors
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        // Use materialKolor only when a specific seed color is provided
-        rememberDynamicColorScheme(
-            seedColor = themeColor, // themeColor is guaranteed non-default here
-            isDark = darkTheme,
-            specVersion = ColorSpec.SpecVersion.SPEC_2025,
-            style = PaletteStyle.TonalSpot // Keep existing style
-        )
-    }
-
-    // Pagaska Neo Brutalism: high-contrast ink surfaces and acid-yellow accents.
+    // Pagaska's Neo Brutalism palette is intentionally independent of wallpaper
+    // colors. System mode changes only the light/dark surface treatment.
     val brutalScheme = remember(baseColorScheme, darkTheme) {
         baseColorScheme.copy(
-            primary = Color(0xFFF5E84B),
+            primary = NeoBrutalismPalette.Yellow,
             onPrimary = Color(0xFF111111),
             primaryContainer = Color(0xFFE6D82F),
             onPrimaryContainer = Color(0xFF111111),
-            secondary = Color(0xFFB8F35A),
+            secondary = NeoBrutalismPalette.Lime,
             onSecondary = Color(0xFF111111),
-            tertiary = Color(0xFFFF70A6),
+            secondaryContainer = Color(0xFF9BD83D),
+            onSecondaryContainer = Color(0xFF111111),
+            tertiary = NeoBrutalismPalette.Pink,
             onTertiary = Color(0xFF111111),
-            surface = if (darkTheme) Color(0xFF171717) else Color(0xFFFFFEF8),
-            background = if (darkTheme) Color(0xFF101010) else Color(0xFFFFFDF5),
-            onSurface = if (darkTheme) Color(0xFFF8F6E9) else Color(0xFF171717),
-            onBackground = if (darkTheme) Color(0xFFF8F6E9) else Color(0xFF171717),
-            outline = if (darkTheme) Color(0xFF777777) else Color(0xFF292929),
+            surface = if (darkTheme) NeoBrutalismPalette.PaperDark else NeoBrutalismPalette.White,
+            surfaceDim = if (darkTheme) Color(0xFF101010) else NeoBrutalismPalette.Muted,
+            surfaceBright = if (darkTheme) Color(0xFF292929) else NeoBrutalismPalette.White,
+            surfaceContainerLowest = if (darkTheme) Color(0xFF0B0B0B) else NeoBrutalismPalette.Panel,
+            surfaceContainerLow = if (darkTheme) Color(0xFF141414) else Color(0xFFF8F5EA),
+            surfaceContainer = if (darkTheme) Color(0xFF1B1B1B) else Color(0xFFF1EEE3),
+            surfaceContainerHigh = if (darkTheme) NeoBrutalismPalette.PanelDark else Color(0xFFEAE7DC),
+            surfaceContainerHighest = if (darkTheme) NeoBrutalismPalette.MutedDark else Color(0xFFE2DFD4),
+            background = if (darkTheme) Color(0xFF101010) else NeoBrutalismPalette.Paper,
+            onSurface = if (darkTheme) Color(0xFFF8F6E9) else NeoBrutalismPalette.Ink,
+            onSurfaceVariant = if (darkTheme) Color(0xFFD0CEC5) else Color(0xFF45443F),
+            onBackground = if (darkTheme) Color(0xFFF8F6E9) else NeoBrutalismPalette.Ink,
+            outline = if (darkTheme) Color(0xFFB8B5AA) else NeoBrutalismPalette.Ink,
+            outlineVariant = if (darkTheme) Color(0xFF55534C) else Color(0xFF77746B),
         )
     }
 
@@ -80,7 +79,14 @@ fun MetrolistTheme(
     // Use standard MaterialTheme instead of MaterialExpressiveTheme
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography, // Use the defined AppTypography
+        typography = AppTypography,
+        shapes = Shapes(
+            extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(2.dp),
+            small = androidx.compose.foundation.shape.RoundedCornerShape(2.dp),
+            medium = androidx.compose.foundation.shape.RoundedCornerShape(3.dp),
+            large = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+            extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+        ),
         content = content
     )
 }

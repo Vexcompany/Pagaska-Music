@@ -7,8 +7,10 @@ package com.metrolist.music.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -73,6 +75,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -146,6 +149,9 @@ import com.metrolist.music.ui.component.SongListItem
 import com.metrolist.music.ui.component.SpeedDialGridItem
 import com.metrolist.music.ui.component.YouTubeGridItem
 import com.metrolist.music.ui.component.YouTubeListItem
+import com.metrolist.music.ui.theme.NeoBrutalismPalette
+import com.metrolist.music.ui.theme.NeoBrutalismMetrics
+import com.metrolist.music.ui.theme.neoPanel
 import com.metrolist.music.ui.component.shimmer.GridItemPlaceHolder
 import com.metrolist.music.ui.component.shimmer.ShimmerHost
 import com.metrolist.music.ui.component.shimmer.TextPlaceholder
@@ -229,12 +235,19 @@ fun CommunityPlaylistCard(
         modifier =
             modifier
                 .width(320.dp)
-                .height(420.dp),
+                .height(420.dp)
+                .neoPanel(
+                    surface = containerColor,
+                    outline = NeoBrutalismPalette.Ink,
+                    shadow = NeoBrutalismPalette.Ink,
+                    shadowOffset = NeoBrutalismMetrics.ShadowOffset,
+                ),
         colors =
             CardDefaults.cardColors(
-                containerColor = containerColor,
+                containerColor = Color.Transparent,
             ),
-        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(NeoBrutalismMetrics.Border, NeoBrutalismPalette.Ink),
+        shape = RoundedCornerShape(NeoBrutalismMetrics.Corner),
         onClick = onClick,
     ) {
         Column(
@@ -1149,6 +1162,40 @@ fun HomeScreen(
         ) {
             val horizontalLazyGridItemWidthFactor = if (maxWidth * 0.475f >= 320.dp) 0.475f else 0.9f
             val horizontalLazyGridItemWidth = maxWidth * horizontalLazyGridItemWidthFactor
+            // Geometric accents form a quiet Neo Brutalism backdrop behind the home feed.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(176.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 18.dp, end = 22.dp)
+                        .size(76.dp)
+                        .rotate(18f)
+                        .background(MaterialTheme.colorScheme.tertiary)
+                        .border(2.dp, Color.Black),
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 74.dp, end = 94.dp)
+                        .size(34.dp)
+                        .background(MaterialTheme.colorScheme.secondary, CircleShape)
+                        .border(2.dp, Color.Black, CircleShape),
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(top = 44.dp, start = 18.dp)
+                        .size(width = 42.dp, height = 12.dp)
+                        .rotate(-24f)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .border(2.dp, Color.Black),
+                )
+            }
+
             val quickPicksSnapLayoutInfoProvider =
                 remember(quickPicksLazyGridState) {
                     SnapLayoutInfoProvider(

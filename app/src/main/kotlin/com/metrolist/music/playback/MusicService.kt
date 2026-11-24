@@ -426,6 +426,7 @@ class MusicService :
 
     private val _playerFlow = MutableStateFlow<ExoPlayer?>(null)
     val playerFlow = _playerFlow.asStateFlow()
+    private var pagaskaIslandController: PagaskaIslandController? = null
 
     private val playerSilenceProcessors = HashMap<Player, SilenceDetectorAudioProcessor>()
 
@@ -620,6 +621,7 @@ class MusicService :
 
     override fun onCreate() {
         super.onCreate()
+        pagaskaIslandController = PagaskaIslandController(this, playerFlow)
         isRunning = true
         shutdownDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
 
@@ -4283,6 +4285,8 @@ class MusicService :
         }
 
     override fun onDestroy() {
+        pagaskaIslandController?.release()
+        pagaskaIslandController = null
         isRunning = false
 
         if (!::player.isInitialized) {
